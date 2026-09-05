@@ -248,9 +248,9 @@ func _choose(opt: Dictionary) -> void:
 	_close_card()
 
 ## 事件卡没有 game.hud 的直接引用，经 main 转发 toast
-func hud_toast(text: String) -> void:
+func hud_toast(text: String, seconds := 4.0) -> void:
 	if game != null and game.hud != null:
-		game.hud.show_toast(text, 2.5)
+		game.hud.show_toast(text, seconds)
 
 func _close_card() -> void:
 	_dim.visible = false

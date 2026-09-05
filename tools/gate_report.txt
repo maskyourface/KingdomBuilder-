@@ -1213,3 +1213,143 @@ RUN #18 · KingdomBuilder 启动安全门禁（tools/run_gate.py）
 判定：GO（8 项门禁全部通过；WARN 8 条已列出，不阻塞）
 ==============================================================================
 
+==============================================================================
+RUN #19 · KingdomBuilder 启动安全门禁（tools/run_gate.py）
+时间：2026-09-06 02:50:38 | Python 3.13.5
+模式：project | 目标：E:\Wechat\WeChat Files\wxid_l77l9bnjgjqf22\FileStorage\File\2026-09\KingdomBuilder (2)
+------------------------------------------------------------------------------
+门禁项与判定规则（任何 ERROR 级发现 → NO-GO；WARN 只列出、不阻塞）：
+  [1]  static_check 子进程 —— 任何 ERROR 级发现 → NO-GO；WARN 全部列出但不阻塞
+  [2a] .gd 块结构（自写解析器）—— func/if/elif/else/for/while/match/class 块头必须有冒号且后随更深的体；空块/缩进断裂/缺冒号 → ERROR，同级块体缩进不一致 → WARN
+  [2b] 括号/引号配平 —— 屏蔽字符串与注释后 (){}[] 必须配平；未闭合字符串（含三引号）→ ERROR
+  [2c] 关键文件存在性 —— scripts 14 文件 + scenes/main.tscn + project.godot + 字体（快照缺 project.godot 按 SNAPSHOT.md 设计降级为 WARN）
+  [2d] project.godot 的 run/main_scene 必须指向存在的场景文件
+  [2e] main.tscn 全部 ext_resource path 必须存在；一个都没有 → ERROR
+  [2f] 存档对称性 —— save_game 写入键 vs load_game/get_save_list 读取键（顶层/buildings/villagers 三组）：键数>0 且差集为空
+  [2g] 目录干净性 —— scripts/ 下禁止 *.bak / *.tmp / *~ / *.orig
+------------------------------------------------------------------------------
+各项结果：
+  [1  ] static_check 子进程（ERROR→NO-GO；WARN 仅列出）     PASS(有WARN)（ERROR=0，WARN=7）
+  [2a ] .gd 块结构：空块/缩进断裂/缺冒号                        PASS(有WARN)（ERROR=0，WARN=1）
+  [2b ] .gd 括号/引号配平                                PASS（ERROR=0，WARN=0）
+  [2c ] 关键文件存在性                                    PASS（ERROR=0，WARN=0）
+  [2d ] project.godot 主场景指向                        PASS（ERROR=0，WARN=0）
+  [2e ] main.tscn ext_resource 存在性                 PASS（ERROR=0，WARN=0）
+  [2f ] 存档对称性复核（键数>0 且差集为空）                        PASS（ERROR=0，WARN=0）
+  [2g ] scripts/ 目录干净性                             PASS（ERROR=0，WARN=0）
+  [3  ] Godot 实机测试（--import + 4 套件）                FAIL（ERROR=5，WARN=0）
+------------------------------------------------------------------------------
+详细发现：
+  [1] static_check 子进程（ERROR→NO-GO；WARN 仅列出）
+      [WARN]  building_placer.gd:48  GridManager.has_road() 形参 1「cell: Vector2i」收到推断类型 Vector2i.ZERO —— 类型明显不符，疑似实参顺序/取值错误（定义见 grid_manager.gd:228）
+      [WARN]  building_placer.gd:49  GridManager.remove_road() 形参 1「cell: Vector2i」收到推断类型 Vector2i.ZERO —— 类型明显不符，疑似实参顺序/取值错误（定义见 grid_manager.gd:244）
+      [WARN]  building_placer.gd:85  GridManager.has_road() 形参 1「cell: Vector2i」收到推断类型 Vector2i.ZERO —— 类型明显不符，疑似实参顺序/取值错误（定义见 grid_manager.gd:228）
+      [WARN]  building_placer.gd:86  GridManager.remove_road() 形参 1「cell: Vector2i」收到推断类型 Vector2i.ZERO —— 类型明显不符，疑似实参顺序/取值错误（定义见 grid_manager.gd:244）
+      [WARN]  building_placer.gd:88  GridManager.building_at() 形参 1「cell: Vector2i」收到推断类型 Vector2i.ZERO —— 类型明显不符，疑似实参顺序/取值错误（定义见 grid_manager.gd:97）
+      [WARN]  building_placer.gd:89  GridManager.building_at() 形参 1「cell: Vector2i」收到推断类型 Vector2i.ZERO —— 类型明显不符，疑似实参顺序/取值错误（定义见 grid_manager.gd:97）
+      [WARN]  hud.gd:961  ResourceManager.get_amount() 形参 1「t: int」收到推断类型 Dictionary —— 类型明显不符，疑似实参顺序/取值错误（定义见 resource_manager.gd:33）
+      INFO    运行方式：主工程原位运行（同时刷新 tools/static_check_report.txt）
+      INFO    总结：ERROR=0 / WARN=7；判定规则：任何 ERROR → NO-GO，WARN 仅列出
+  [2a] .gd 块结构：空块/缩进断裂/缺冒号
+      [WARN]  scripts/hud.gd  同级块头（缩进 '\t'）的块体缩进不一致：'\t\t'（66 处，如行 229）；'\t\t\t'（1 处，如行 861）
+      INFO    块结构解析覆盖 19 个 .gd 文件（scripts + tests），共识别 1115 个块头；空块/缩进断裂/缺冒号 → ERROR，同级块体缩进不一致 → WARN
+  [2b] .gd 括号/引号配平
+      INFO    括号/引号配平检查覆盖 19 个 .gd 文件（屏蔽字符串与注释后统计 (){}[]）；未闭合字符串含三引号串
+  [2c] 关键文件存在性
+      INFO    scripts/ 实有 15 个 .gd（基线要求 14 个）；缺失 0 个，额外 1 个（不阻塞）：event_manager.gd
+      INFO    scenes/main.tscn 存在
+      INFO    project.godot 存在
+      INFO    字体文件存在：fonts/NotoSansCJKsc-Regular.otf
+  [2d] project.godot 主场景指向
+      INFO    run/main_scene = res://scenes/main.tscn → 文件存在
+  [2e] main.tscn ext_resource 存在性
+      INFO    ext_resource 共 1 项，全部存在：scripts/main.gd
+  [2f] 存档对称性复核（键数>0 且差集为空）
+      INFO    「buildings」：6 个键写入/读取两侧完全一致（hp, id, origin, timer, uid, worked_today）
+      INFO    「villagers」：12 个键写入/读取两侧完全一致（ate_bread, cell, clothes_days, happiness, has_clothes, home, hp, hunger, name, role, uid, workplace）
+      INFO    「顶层」：21 个键写入/读取两侧完全一致（buildings, crowned, day, happiness, height, next_raid_day, raid_mood_bonus, raid_mood_days_left, raid_pending, raid_started_day, roads, save_name, saved_at, stock, terrain, time_of_day, version, villager_count, villager_seq, villagers, width）
+      INFO    复核范围：save_game 写入 vs load_game + get_save_list 读取；stock 以动态键 str(Type) 同构读写，不在静态键对账范围
+  [2g] scripts/ 目录干净性
+      INFO    scripts/ 无 *.bak / *.tmp / *~ / *.orig 临时/备份文件（共 30 项）
+  [3] Godot 实机测试（--import + 4 套件）
+      [ERROR] godot --import  --import 退出码=0，解析错误 5 条：SCRIPT ERROR: Parse Error: Too many arguments for "hud_toast()" call. Expected at most 1 but received 2.; ERROR: Failed to load script "res://scripts/event_manager.gd" with error "Parse error".; SCRIPT ERROR: Parse Error: Too many arguments for "hud_toast()" call. Expected at most 1 but received 2.; SCRIPT ERROR: Compile Error: Failed to compile depended scripts.; ERROR: Failed to load script "res://scripts/main.gd" with error "Parse error".
+      [ERROR] tests/smoke_test.gd  实机测试 smoke_test 失败：_process (res://scripts/main.gd:956)
+SCRIPT ERROR: Invalid access to property or key 'color' on a base object of type 'Nil'.
+   at: _process (res://scripts/main.gd:956)
+SCRIPT ERROR: Invalid access to property or key 'color' on a base object of type 'Nil'.
+   at: _process (res://scripts/main.gd:956)
+      [ERROR] tests/menu_test.gd  实机测试 menu_test 失败：超时（>300s）
+      [ERROR] tests/play_test.gd  实机测试 play_test(真实开局模拟) 失败：超时（>300s）
+      [ERROR] tests/logic_test.gd  实机测试 logic_test 失败：[FAIL] 6b 装配：裁员后恰余 2 名空闲村民; [FAIL] 一键招满：gatherer=1（优先级 0，拿第 1 名空闲村民）; [FAIL] 一键招满：mill=1（优先级 4，拿第 2 名空闲村民）; [FAIL] 2 名空闲村民全部上岗（workplace 均已绑定）
+==============================================================================
+判定：NO-GO（未通过门禁项：[3]；ERROR 共 5 条，逐条见上）
+==============================================================================
+
+==============================================================================
+RUN #20 · KingdomBuilder 启动安全门禁（tools/run_gate.py）
+时间：2026-09-06 03:02:21 | Python 3.13.5
+模式：project | 目标：E:\Wechat\WeChat Files\wxid_l77l9bnjgjqf22\FileStorage\File\2026-09\KingdomBuilder (2)
+------------------------------------------------------------------------------
+门禁项与判定规则（任何 ERROR 级发现 → NO-GO；WARN 只列出、不阻塞）：
+  [1]  static_check 子进程 —— 任何 ERROR 级发现 → NO-GO；WARN 全部列出但不阻塞
+  [2a] .gd 块结构（自写解析器）—— func/if/elif/else/for/while/match/class 块头必须有冒号且后随更深的体；空块/缩进断裂/缺冒号 → ERROR，同级块体缩进不一致 → WARN
+  [2b] 括号/引号配平 —— 屏蔽字符串与注释后 (){}[] 必须配平；未闭合字符串（含三引号）→ ERROR
+  [2c] 关键文件存在性 —— scripts 14 文件 + scenes/main.tscn + project.godot + 字体（快照缺 project.godot 按 SNAPSHOT.md 设计降级为 WARN）
+  [2d] project.godot 的 run/main_scene 必须指向存在的场景文件
+  [2e] main.tscn 全部 ext_resource path 必须存在；一个都没有 → ERROR
+  [2f] 存档对称性 —— save_game 写入键 vs load_game/get_save_list 读取键（顶层/buildings/villagers 三组）：键数>0 且差集为空
+  [2g] 目录干净性 —— scripts/ 下禁止 *.bak / *.tmp / *~ / *.orig
+------------------------------------------------------------------------------
+各项结果：
+  [1  ] static_check 子进程（ERROR→NO-GO；WARN 仅列出）     PASS(有WARN)（ERROR=0，WARN=7）
+  [2a ] .gd 块结构：空块/缩进断裂/缺冒号                        PASS(有WARN)（ERROR=0，WARN=1）
+  [2b ] .gd 括号/引号配平                                PASS（ERROR=0，WARN=0）
+  [2c ] 关键文件存在性                                    PASS（ERROR=0，WARN=0）
+  [2d ] project.godot 主场景指向                        PASS（ERROR=0，WARN=0）
+  [2e ] main.tscn ext_resource 存在性                 PASS（ERROR=0，WARN=0）
+  [2f ] 存档对称性复核（键数>0 且差集为空）                        PASS（ERROR=0，WARN=0）
+  [2g ] scripts/ 目录干净性                             PASS（ERROR=0，WARN=0）
+  [3  ] Godot 实机测试（--import + 4 套件）                PASS（ERROR=0，WARN=0）
+------------------------------------------------------------------------------
+详细发现：
+  [1] static_check 子进程（ERROR→NO-GO；WARN 仅列出）
+      [WARN]  building_placer.gd:48  GridManager.has_road() 形参 1「cell: Vector2i」收到推断类型 Vector2i.ZERO —— 类型明显不符，疑似实参顺序/取值错误（定义见 grid_manager.gd:228）
+      [WARN]  building_placer.gd:49  GridManager.remove_road() 形参 1「cell: Vector2i」收到推断类型 Vector2i.ZERO —— 类型明显不符，疑似实参顺序/取值错误（定义见 grid_manager.gd:244）
+      [WARN]  building_placer.gd:85  GridManager.has_road() 形参 1「cell: Vector2i」收到推断类型 Vector2i.ZERO —— 类型明显不符，疑似实参顺序/取值错误（定义见 grid_manager.gd:228）
+      [WARN]  building_placer.gd:86  GridManager.remove_road() 形参 1「cell: Vector2i」收到推断类型 Vector2i.ZERO —— 类型明显不符，疑似实参顺序/取值错误（定义见 grid_manager.gd:244）
+      [WARN]  building_placer.gd:88  GridManager.building_at() 形参 1「cell: Vector2i」收到推断类型 Vector2i.ZERO —— 类型明显不符，疑似实参顺序/取值错误（定义见 grid_manager.gd:97）
+      [WARN]  building_placer.gd:89  GridManager.building_at() 形参 1「cell: Vector2i」收到推断类型 Vector2i.ZERO —— 类型明显不符，疑似实参顺序/取值错误（定义见 grid_manager.gd:97）
+      [WARN]  hud.gd:961  ResourceManager.get_amount() 形参 1「t: int」收到推断类型 Dictionary —— 类型明显不符，疑似实参顺序/取值错误（定义见 resource_manager.gd:33）
+      INFO    运行方式：主工程原位运行（同时刷新 tools/static_check_report.txt）
+      INFO    总结：ERROR=0 / WARN=7；判定规则：任何 ERROR → NO-GO，WARN 仅列出
+  [2a] .gd 块结构：空块/缩进断裂/缺冒号
+      [WARN]  scripts/hud.gd  同级块头（缩进 '\t'）的块体缩进不一致：'\t\t'（66 处，如行 229）；'\t\t\t'（1 处，如行 861）
+      INFO    块结构解析覆盖 19 个 .gd 文件（scripts + tests），共识别 1115 个块头；空块/缩进断裂/缺冒号 → ERROR，同级块体缩进不一致 → WARN
+  [2b] .gd 括号/引号配平
+      INFO    括号/引号配平检查覆盖 19 个 .gd 文件（屏蔽字符串与注释后统计 (){}[]）；未闭合字符串含三引号串
+  [2c] 关键文件存在性
+      INFO    scripts/ 实有 15 个 .gd（基线要求 14 个）；缺失 0 个，额外 1 个（不阻塞）：event_manager.gd
+      INFO    scenes/main.tscn 存在
+      INFO    project.godot 存在
+      INFO    字体文件存在：fonts/NotoSansCJKsc-Regular.otf
+  [2d] project.godot 主场景指向
+      INFO    run/main_scene = res://scenes/main.tscn → 文件存在
+  [2e] main.tscn ext_resource 存在性
+      INFO    ext_resource 共 1 项，全部存在：scripts/main.gd
+  [2f] 存档对称性复核（键数>0 且差集为空）
+      INFO    「buildings」：6 个键写入/读取两侧完全一致（hp, id, origin, timer, uid, worked_today）
+      INFO    「villagers」：12 个键写入/读取两侧完全一致（ate_bread, cell, clothes_days, happiness, has_clothes, home, hp, hunger, name, role, uid, workplace）
+      INFO    「顶层」：21 个键写入/读取两侧完全一致（buildings, crowned, day, happiness, height, next_raid_day, raid_mood_bonus, raid_mood_days_left, raid_pending, raid_started_day, roads, save_name, saved_at, stock, terrain, time_of_day, version, villager_count, villager_seq, villagers, width）
+      INFO    复核范围：save_game 写入 vs load_game + get_save_list 读取；stock 以动态键 str(Type) 同构读写，不在静态键对账范围
+  [2g] scripts/ 目录干净性
+      INFO    scripts/ 无 *.bak / *.tmp / *~ / *.orig 临时/备份文件（共 30 项）
+  [3] Godot 实机测试（--import + 4 套件）
+      INFO    godot --import 通过（全部脚本解析零错误）
+      INFO    实机测试 smoke_test 通过（全部步骤通过）
+      INFO    实机测试 menu_test 通过（全部步骤通过）
+      INFO    实机测试 play_test(真实开局模拟) 通过（全部步骤通过）
+      INFO    实机测试 logic_test 通过（PASS=173/FAIL=0）
+==============================================================================
+判定：GO（8 项门禁全部通过；WARN 8 条已列出，不阻塞）
+==============================================================================
+
