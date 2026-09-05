@@ -131,6 +131,9 @@ func _build_ui() -> void:
 	_time_label = Label.new()
 	top_row.add_child(_time_label)
 	_era_label = Label.new()
+	_era_label.clip_text = true
+	_era_label.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
+	_era_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL  # 最坏文案 1329px>1280 的兜底
 	top_row.add_child(_era_label)
 	_pop_btn = Button.new()
 	_pop_btn.flat = true
@@ -178,6 +181,7 @@ func _build_ui() -> void:
 	# ---- 袭击横幅（顶栏下方居中，常驻直到 raid 清空 banner_text） ----
 	_banner_panel = PanelContainer.new()
 	_banner_panel.set_anchors_preset(Control.PRESET_CENTER_TOP)
+	_banner_panel.grow_horizontal = Control.GROW_DIRECTION_BOTH
 	_banner_panel.offset_top = 66.0
 	_banner_panel.mouse_filter = Control.MOUSE_FILTER_IGNORE  # 别挡住下方的地图点击
 	_banner_panel.visible = false
@@ -191,6 +195,7 @@ func _build_ui() -> void:
 	# ---- 临时通知 toast 容器（横幅下方居中，最多 3 条堆叠，逐条倒计时自动消失） ----
 	_toast_box = VBoxContainer.new()
 	_toast_box.set_anchors_preset(Control.PRESET_CENTER_TOP)
+	_toast_box.grow_horizontal = Control.GROW_DIRECTION_BOTH
 	_toast_box.offset_top = 112.0
 	_toast_box.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	root.add_child(_toast_box)
@@ -287,6 +292,8 @@ func _build_ui() -> void:
 	# ---- 建筑详情面板（右侧，默认隐藏） ----
 	_details_panel = PanelContainer.new()
 	_details_panel.set_anchors_preset(Control.PRESET_CENTER_RIGHT)
+	_details_panel.grow_horizontal = Control.GROW_DIRECTION_BOTH
+	_details_panel.grow_vertical = Control.GROW_DIRECTION_BOTH
 	_details_panel.offset_left = -200
 	_details_panel.offset_right = -12
 	_details_panel.offset_top = -140
@@ -348,6 +355,8 @@ func _build_ui() -> void:
 	# ---- 村民详情面板（右侧，与建筑详情同位置、互斥显示） ----
 	_vdetail_panel = PanelContainer.new()
 	_vdetail_panel.set_anchors_preset(Control.PRESET_CENTER_RIGHT)
+	_vdetail_panel.grow_horizontal = Control.GROW_DIRECTION_BOTH
+	_vdetail_panel.grow_vertical = Control.GROW_DIRECTION_BOTH
 	_vdetail_panel.offset_left = -200
 	_vdetail_panel.offset_right = -12
 	_vdetail_panel.offset_top = -140
@@ -388,6 +397,7 @@ func _build_ui() -> void:
 	_guide_panel.set_anchors_preset(Control.PRESET_BOTTOM_LEFT)
 	_guide_panel.offset_left = 12
 	_guide_panel.offset_bottom = -32
+	_guide_panel.grow_vertical = Control.GROW_DIRECTION_BEGIN  # 底边钉住向上展开，否则整面板出屏
 	_guide_panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	root.add_child(_guide_panel)
 	var guide_box := VBoxContainer.new()
@@ -409,6 +419,8 @@ func _build_ui() -> void:
 	_log_panel.set_anchors_preset(Control.PRESET_BOTTOM_RIGHT)
 	_log_panel.offset_right = -12
 	_log_panel.offset_bottom = -32
+	_log_panel.grow_horizontal = Control.GROW_DIRECTION_BEGIN
+	_log_panel.grow_vertical = Control.GROW_DIRECTION_BEGIN
 	_log_panel.visible = false
 	root.add_child(_log_panel)
 	_log_list = Label.new()
@@ -424,6 +436,8 @@ func _build_ui() -> void:
 	root.add_child(_collapse_dim)
 	_collapse_panel = PanelContainer.new()
 	_collapse_panel.set_anchors_preset(Control.PRESET_CENTER)
+	_collapse_panel.grow_horizontal = Control.GROW_DIRECTION_BOTH
+	_collapse_panel.grow_vertical = Control.GROW_DIRECTION_BOTH
 	_collapse_panel.visible = false
 	_collapse_panel.z_index = 50
 	root.add_child(_collapse_panel)
@@ -463,7 +477,7 @@ func _build_ui() -> void:
 	hint.offset_top = -28
 	hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	hint.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	hint.text = "左键放置/查看建筑/查看村民 · 右键取消/拆除 · WASD 平移 · 滚轮缩放 · 空格倍速"
+	hint.text = "左键放置/查看 · 右键取消/两次确认拆除/拖动拆路 · 中键拖动平移 · 空格倍速 · P 暂停 · B 建造 · L 村民 · WASD/滚轮"
 	root.add_child(hint)
 	# 按钮不抢焦点：否则点过按钮后 Space（ui_accept）会被焦点按钮吃掉，
 	# 倍速失效不说，焦点在「保存」上还会连发存档
@@ -567,11 +581,14 @@ func _toggle_log_panel() -> void:
 func _refresh_log_panel() -> void:
 	if _log_lines.is_empty():
 		_log_list.text = "（暂无消息）"
-	else:
-		var parts := PackedStringArray()
-		for line in _log_lines:
-			parts.append("· " + line)
-		_log_list.text = "\n".join(parts)
+		return
+	var parts := PackedStringArray()
+	var start := maxi(0, _log_lines.size() - 12)  # 最多显示最近 12 条，防压住详情面板
+	for i in range(start, _log_lines.size()):
+		parts.append("· " + _log_lines[i])
+	if start > 0:
+		parts.insert(0, "…（更早 %d 条略）" % start)
+	_log_list.text = "\n".join(parts)
 
 ## 城堡落成：加冕提示（main._on_placed 调用）
 func show_coronation() -> void:
@@ -750,6 +767,8 @@ func _refresh_status_line(b) -> void:
 	if b.data.get("produces", false):
 		if b.data.get("no_winter", false) and time_mgr.is_winter():
 			status = "❄ 冬季停产"
+		elif b.no_prod_today:
+			status = "⛈ 暴雨停产（今日）"
 		elif b.depleted:
 			status = "周边森林已耗尽，停产中（建植树场补种）"
 		elif not resources.has_all(b.data.get("inputs", [])) \
@@ -896,7 +915,7 @@ func _refresh_lowfreq(era: int) -> void:
 			idle += 1
 		if v.home == null or not is_instance_valid(v.home):
 			homeless += 1
-	_pop_btn.text = "人口 %d｜空闲 %d｜无房 %d" % [pop, idle, homeless]
+	_pop_btn.text = "人口 %d｜空闲 %d｜无房 %d" % [villagers_root.get_child_count(), idle, homeless]
 	# 时代目标行（带进度数字；无房预警优先）
 	var goal: String = main.era_goal_progress()
 	if homeless > 0:

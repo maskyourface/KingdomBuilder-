@@ -41,6 +41,8 @@ func _build_ui() -> void:
 	# ---- 主菜单面板 ----
 	_menu_panel = PanelContainer.new()
 	_menu_panel.set_anchors_preset(Control.PRESET_CENTER)
+	_menu_panel.grow_horizontal = Control.GROW_DIRECTION_BOTH
+	_menu_panel.grow_vertical = Control.GROW_DIRECTION_BOTH
 	root.add_child(_menu_panel)
 	var box := VBoxContainer.new()
 	box.add_theme_constant_override(&"separation", 10)
@@ -72,6 +74,8 @@ func _build_ui() -> void:
 	# ---- 读取面板（选择存档） ----
 	_load_panel = PanelContainer.new()
 	_load_panel.set_anchors_preset(Control.PRESET_CENTER)
+	_load_panel.grow_horizontal = Control.GROW_DIRECTION_BOTH
+	_load_panel.grow_vertical = Control.GROW_DIRECTION_BOTH
 	_load_panel.visible = false
 	root.add_child(_load_panel)
 	var load_box := VBoxContainer.new()
@@ -94,6 +98,8 @@ func _build_ui() -> void:
 	# ---- 设置面板（占位） ----
 	_settings_panel = PanelContainer.new()
 	_settings_panel.set_anchors_preset(Control.PRESET_CENTER)
+	_settings_panel.grow_horizontal = Control.GROW_DIRECTION_BOTH
+	_settings_panel.grow_vertical = Control.GROW_DIRECTION_BOTH
 	_settings_panel.visible = false
 	root.add_child(_settings_panel)
 	var settings_box := VBoxContainer.new()

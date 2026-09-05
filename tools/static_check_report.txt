@@ -1,6 +1,6 @@
 ==============================================================================
 KingdomBuilder 启发式静态检查报告
-生成时间：2026-09-06 01:25:07
+生成时间：2026-09-06 02:50:38
 运行时：Python 3.13.5
 工具版本：迭代2（新增 [E] 信号契约 / [F] 语法粗检；[A] 映射补全 game→Main；[D] 新字段复跑）
 扫描目录：scripts, tests
@@ -15,13 +15,13 @@ KingdomBuilder 启发式静态检查报告
   [WARN] building_placer.gd:86  GridManager.remove_road() 形参 1「cell: Vector2i」收到推断类型 Vector2i.ZERO —— 类型明显不符，疑似实参顺序/取值错误（定义见 grid_manager.gd:244）
   [WARN] building_placer.gd:88  GridManager.building_at() 形参 1「cell: Vector2i」收到推断类型 Vector2i.ZERO —— 类型明显不符，疑似实参顺序/取值错误（定义见 grid_manager.gd:97）
   [WARN] building_placer.gd:89  GridManager.building_at() 形参 1「cell: Vector2i」收到推断类型 Vector2i.ZERO —— 类型明显不符，疑似实参顺序/取值错误（定义见 grid_manager.gd:97）
-  [WARN] hud.gd:942  ResourceManager.get_amount() 形参 1「t: int」收到推断类型 Dictionary —— 类型明显不符，疑似实参顺序/取值错误（定义见 resource_manager.gd:33）
+  [WARN] hud.gd:961  ResourceManager.get_amount() 形参 1「t: int」收到推断类型 Dictionary —— 类型明显不符，疑似实参顺序/取值错误（定义见 resource_manager.gd:33）
   小计：ERROR=0, WARN=7
   对象映射覆盖（迭代2）：PROJECT_TYPE_MAP 新增 game→Main（RaidManager 持有 main.gd），
   迭代1新增调用面全部纳入 [A] 扫描；逐点核验：
-    RaidManager.game → Main（main.gd）：代码中出现 89 处
-    game.hud → HUD：代码中出现 5 处，类 HUD 存在
-    HUD.show_toast：代码中出现 15 处，成员 HUD.show_toast 存在
+    RaidManager.game → Main（main.gd）：代码中出现 99 处
+    game.hud → HUD：代码中出现 7 处，类 HUD 存在
+    HUD.show_toast：代码中出现 17 处，成员 HUD.show_toast 存在
     HUD.show_coronation：代码中出现 1 处，成员 HUD.show_coronation 存在
     HUD.invalidate_villager_list：代码中出现 3 处，成员 HUD.invalidate_villager_list 存在
     RaidManager.raid_pending：代码中出现 10 处，成员 RaidManager.raid_pending 存在
@@ -87,37 +87,37 @@ KingdomBuilder 启发式静态检查报告
     [OK] pressed.emit()（内置信号）@ menu_test.gd:15
     [OK] pressed.emit()（内置信号）@ menu_test.gd:28
   connect 校验（32 处）：
-    [OK] btn.pressed（内置） ← _choose.bind(opt) @ event_manager.gd:184 —— 信号 0 参，目标「_choose.bind(opt)」
+    [OK] btn.pressed（内置） ← _choose.bind(opt) @ event_manager.gd:237 —— 信号 0 参，目标「_choose.bind(opt)」
     [OK] ResourceManager.changed ← _mark_resources_dirty @ hud.gd:107 —— 信号 0 参，目标「_mark_resources_dirty」
-    [OK] _pop_btn.pressed（内置） ← main.focus_next_idle @ hud.gd:138 —— 信号 0 参，目标「main.focus_next_idle」
-    [OK] build_toggle.pressed（内置） ← _toggle_build_menu @ hud.gd:149 —— 信号 0 参，目标「_toggle_build_menu」
-    [OK] villager_toggle.pressed（内置） ← _toggle_villager_panel @ hud.gd:153 —— 信号 0 参，目标「_toggle_villager_panel」
-    [OK] log_btn.pressed（内置） ← _toggle_log_panel @ hud.gd:157 —— 信号 0 参，目标「_toggle_log_panel」
-    [OK] fill_btn.pressed（内置） ← main.assign_all_workers @ hud.gd:161 —— 信号 0 参，目标「main.assign_all_workers」
-    [OK] save_btn.pressed（内置） ← main.save_game @ hud.gd:165 —— 信号 0 参，目标「main.save_game」
-    [OK] load_btn.pressed（内置） ← main.open_load_menu @ hud.gd:169 —— 信号 0 参，目标「main.open_load_menu」
-    [OK] tab_btn.pressed（内置） ← _switch_tab.bind(g) @ hud.gd:229 —— 信号 0 参，目标「_switch_tab.bind(g)」
-    [OK] btn.pressed（内置） ← _on_build_button.bind(data) @ hud.gd:241 —— 信号 0 参，目标「_on_build_button.bind(data)」
-    [OK] _sort_btn.pressed（内置） ← _on_sort_pressed @ hud.gd:278 —— 信号 0 参，目标「_on_sort_pressed」
-    [OK] minus_btn.pressed（内置） ← _on_unassign_worker @ hud.gd:322 —— 信号 0 参，目标「_on_unassign_worker」
-    [OK] plus_btn.pressed（内置） ← _on_assign_worker @ hud.gd:328 —— 信号 0 参，目标「_on_assign_worker」
-    [OK] demolish_btn.pressed（内置） ← _on_demolish_current @ hud.gd:341 —— 信号 0 参，目标「_on_demolish_current」
-    [OK] close_btn.pressed（内置） ← main.clear_building_inspect @ hud.gd:345 —— 信号 0 参，目标「main.clear_building_inspect」
-    [OK] fire_btn.pressed（内置） ← _on_fire_villager @ hud.gd:379 —— 信号 0 参，目标「_on_fire_villager」
-    [OK] vd_close_btn.pressed（内置） ← func(): _vdetail_panel.visible = false @ hud.gd:383 —— 信号 0 参，目标「func(): _vdetail_panel.visible = false」
-    [OK] collapse_load.pressed（内置） ← func(): main.open_load_menu(false) @ hud.gd:449 —— 信号 0 参，目标「func(): main.open_load_menu(false)」
-    [OK] collapse_new.pressed（内置） ← main.new_game @ hud.gd:453 —— 信号 0 参，目标「main.new_game」
-    [OK] collapse_ignore.pressed（内置） ← hide_collapse_panel @ hud.gd:457 —— 信号 0 参，目标「hide_collapse_panel」
-    [OK] btn.pressed（内置） ← main.focus_villager.bind(v) @ hud.gd:650 —— 信号 0 参，目标「main.focus_villager.bind(v)」
+    [OK] _pop_btn.pressed（内置） ← main.focus_next_idle @ hud.gd:141 —— 信号 0 参，目标「main.focus_next_idle」
+    [OK] build_toggle.pressed（内置） ← _toggle_build_menu @ hud.gd:152 —— 信号 0 参，目标「_toggle_build_menu」
+    [OK] villager_toggle.pressed（内置） ← _toggle_villager_panel @ hud.gd:156 —— 信号 0 参，目标「_toggle_villager_panel」
+    [OK] log_btn.pressed（内置） ← _toggle_log_panel @ hud.gd:160 —— 信号 0 参，目标「_toggle_log_panel」
+    [OK] fill_btn.pressed（内置） ← main.assign_all_workers @ hud.gd:164 —— 信号 0 参，目标「main.assign_all_workers」
+    [OK] save_btn.pressed（内置） ← main.save_game @ hud.gd:168 —— 信号 0 参，目标「main.save_game」
+    [OK] load_btn.pressed（内置） ← main.open_load_menu @ hud.gd:172 —— 信号 0 参，目标「main.open_load_menu」
+    [OK] tab_btn.pressed（内置） ← _switch_tab.bind(g) @ hud.gd:234 —— 信号 0 参，目标「_switch_tab.bind(g)」
+    [OK] btn.pressed（内置） ← _on_build_button.bind(data) @ hud.gd:246 —— 信号 0 参，目标「_on_build_button.bind(data)」
+    [OK] _sort_btn.pressed（内置） ← _on_sort_pressed @ hud.gd:283 —— 信号 0 参，目标「_on_sort_pressed」
+    [OK] minus_btn.pressed（内置） ← _on_unassign_worker @ hud.gd:329 —— 信号 0 参，目标「_on_unassign_worker」
+    [OK] plus_btn.pressed（内置） ← _on_assign_worker @ hud.gd:335 —— 信号 0 参，目标「_on_assign_worker」
+    [OK] demolish_btn.pressed（内置） ← _on_demolish_current @ hud.gd:348 —— 信号 0 参，目标「_on_demolish_current」
+    [OK] close_btn.pressed（内置） ← main.clear_building_inspect @ hud.gd:352 —— 信号 0 参，目标「main.clear_building_inspect」
+    [OK] fire_btn.pressed（内置） ← _on_fire_villager @ hud.gd:388 —— 信号 0 参，目标「_on_fire_villager」
+    [OK] vd_close_btn.pressed（内置） ← func(): _vdetail_panel.visible = false @ hud.gd:392 —— 信号 0 参，目标「func(): _vdetail_panel.visible = false」
+    [OK] collapse_load.pressed（内置） ← func(): main.open_load_menu(false) @ hud.gd:463 —— 信号 0 参，目标「func(): main.open_load_menu(false)」
+    [OK] collapse_new.pressed（内置） ← main.new_game @ hud.gd:467 —— 信号 0 参，目标「main.new_game」
+    [OK] collapse_ignore.pressed（内置） ← hide_collapse_panel @ hud.gd:471 —— 信号 0 参，目标「hide_collapse_panel」
+    [OK] btn.pressed（内置） ← main.focus_villager.bind(v) @ hud.gd:667 —— 信号 0 参，目标「main.focus_villager.bind(v)」
     [OK] BuildingPlacer.placed ← _on_placed @ main.gd:82 —— 信号 1 参，目标「_on_placed」
     [OK] BuildingPlacer.demolished ← _on_construction_changed @ main.gd:83 —— 信号 0 参，目标「_on_construction_changed」
     [OK] BuildingPlacer.inspect_requested ← _on_inspect @ main.gd:84 —— 信号 1 参，目标「_on_inspect」
     [OK] BuildingPlacer.place_failed ← _on_place_failed @ main.gd:85 —— 信号 1 参，目标「_on_place_failed」
     [OK] TimeManager.new_day ← _on_new_day @ main.gd:105 —— 信号 0 参，目标「_on_new_day」
-    [OK] Villager.died ← _on_villager_died @ main.gd:135 —— 信号 2 参，目标「_on_villager_died」
-    [OK] b.pressed（内置） ← action @ main_menu.gd:111 —— 信号 0 参，目标「action」
-    [OK] load_btn.pressed（内置） ← main.load_and_play.bind(s[""]) @ main_menu.gd:188 —— 信号 0 参，目标「main.load_and_play.bind(s[""])」
-    [OK] del_btn.pressed（内置） ← _on_delete_save.bind(s[""]) @ main_menu.gd:193 —— 信号 0 参，目标「_on_delete_save.bind(s[""])」
+    [OK] Villager.died ← _on_villager_died @ main.gd:138 —— 信号 2 参，目标「_on_villager_died」
+    [OK] b.pressed（内置） ← action @ main_menu.gd:117 —— 信号 0 参，目标「action」
+    [OK] load_btn.pressed（内置） ← main.load_and_play.bind(s[""]) @ main_menu.gd:194 —— 信号 0 参，目标「main.load_and_play.bind(s[""])」
+    [OK] del_btn.pressed（内置） ← _on_delete_save.bind(s[""]) @ main_menu.gd:199 —— 信号 0 参，目标「_on_delete_save.bind(s[""])」
     [OK] Villager.died ← game._on_villager_died @ save_manager.gd:269 —— 信号 2 参，目标「game._on_villager_died」
   Callable 间接连接（main_menu._make_button 模式，按 pressed 0 参校验）：
     [OK] 11 处 _make_button 实参校验通过

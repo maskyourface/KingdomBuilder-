@@ -115,11 +115,14 @@ func _ready() -> void:
 	menu.setup(self)
 	show_menu()
 
-func spawn_villager() -> void:
+func spawn_villager(quiet := false) -> void:
 	_villager_seq += 1
 	var v := Villager.new()
 	v.uid = _villager_seq
 	v.display_name = "村民%d号" % _villager_seq
+	if not quiet and _game_started:
+		hud.show_toast("新村民 %s 来到了王国（人口 %d）" % [v.display_name,
+			villagers_root.get_child_count() + 1], 3.0)  # 移民是核心正反馈，必须播报
 	# 出生点优先落在某栋住房旁，而不是全图随机乱放，省去新村民长途跋涉
 	var start := grid.random_walkable_cell()
 	var homes: Array = []
@@ -152,7 +155,8 @@ func _on_new_day() -> void:
 	var rain := event_mgr.rainy_day == time_mgr.day
 	for b in buildings_root.get_children():
 		var bid: String = String(b.data.get("id", ""))
-		b.no_prod_today = rain and (bid == "farm" or bid == "fisher")
+		# 暴雨停农田；渔屋是冬季唯一食物产线且"暴雨浇不干河"，不停
+		b.no_prod_today = rain and bid == "farm"
 	# 换季提示（入冬最重要：农田/采集停产）
 	if time_mgr.season != _last_season:
 		if _last_season != -1 and time_mgr.season == TimeManager.Season.WINTER and hud != null:
@@ -271,26 +275,32 @@ func tutorial_step() -> int:
 # ---------- 引导里程碑奖励（每完成一步发一份资源，前期正反馈） ----------
 
 const TUTORIAL_REWARDS := {
-	2: [[ResourceManager.Type.FOOD, 6]],
-	3: [[ResourceManager.Type.WOOD, 6]],
-	4: [[ResourceManager.Type.FOOD, 8]],
-	5: [[ResourceManager.Type.WOOD, 6]],
-	6: [[ResourceManager.Type.FOOD, 6]],
-	7: [[ResourceManager.Type.STONE, 3]],
+	1: [[ResourceManager.Type.FOOD, 6]],
+	2: [[ResourceManager.Type.WOOD, 6]],
+	3: [[ResourceManager.Type.FOOD, 8]],
+	4: [[ResourceManager.Type.WOOD, 6]],
+	5: [[ResourceManager.Type.FOOD, 6]],
+	6: [[ResourceManager.Type.STONE, 3]],
 }
-var _tutorial_last := 0
+var _tutorial_last := 0  # 上次所处的引导步（-1=读档恢复，不补发奖励）
 
 func _check_tutorial_reward(step: int) -> void:
-	# step 比 _tutorial_last 大 = 刚完成前一步 → 发奖励（读档恢复时 _tutorial_last=-1 不发）
-	if step <= _tutorial_last:
+	if _tutorial_last == -1:
+		_tutorial_last = step  # 读档恢复：不补发奖励，避免幽灵 toast 与重复发奖
 		return
-	var reward: Array = TUTORIAL_REWARDS.get(step, [])
-	for entry in reward:
-		resources.add(entry[0], entry[1])
-	var parts := PackedStringArray()
-	for e in reward:
-		parts.append("%s+%d" % [ResourceManager.NAMES[e[0]], e[1]])
-	hud.show_toast("引导奖励：第 %d 步完成（%s）" % [step, "、".join(parts)], 4.0)
+	var completed := -1
+	if step > _tutorial_last:
+		completed = step - 1  # 进入新步骤 = 完成了上一步
+	elif step == 0 and _tutorial_last == 6:
+		completed = 6  # 水井建成，引导毕业（原表 key 7 永不可达的修正）
+	if completed >= 1:
+		var reward: Array = TUTORIAL_REWARDS.get(completed, [])
+		if not reward.is_empty():
+			var parts := PackedStringArray()
+			for e in reward:
+				resources.add(e[0], e[1])
+				parts.append("%s+%d" % [ResourceManager.NAMES[e[0]], e[1]])
+			hud.show_toast("完成引导第 %d 步！奖励：%s" % [completed, "、".join(parts)], 4.0)
 	_tutorial_last = step
 
 # ---------- 覆灭判定 ----------
@@ -791,6 +801,7 @@ func is_game_started() -> bool:
 	return _game_started
 
 func show_menu() -> void:
+	_panning = false  # 暂停/菜单可能吞掉松开事件，防中键平移卡死
 	hud.visible = false  # 进菜单时隐藏游戏 HUD
 	Engine.time_scale = 1.0  # 倍速跨菜单/读档不复位会让暂停语义混乱
 	menu.show_menu()
@@ -815,6 +826,7 @@ func new_game() -> void:
 	_collapse_days = 0
 	_collapse_shown = false
 	_tutorial_last = 0
+	event_mgr.reset()
 	hud.hide_collapse_panel()
 	for v in villagers_root.get_children():
 		v.free()
@@ -861,8 +873,8 @@ func start_or_continue() -> void:
 ## autosave_first=false 供覆灭面板的"读取存档"使用：死档绝不能顶进 autosave.json
 func open_load_menu(autosave_first := true) -> void:
 	# 袭击进行中不自动存档：save_game 会把 raid_active 强制结算成撤退，等于用读档面板白嫖一次无敌
-	if autosave_first and _game_started and not raid.raid_active:
-		save_game(SaveManager.AUTOSAVE)
+	if autosave_first and _game_started and not raid.raid_active 			and villagers_root.get_child_count() > 0:
+		save_game(SaveManager.AUTOSAVE)  # 覆灭态的死档不顶 autosave（与 _autosave_if_alive 同口径）
 	hud.hide_collapse_panel()  # 覆灭面板与读取面板同为中心锚点，打开读取时收起遮罩
 	menu.show_menu()
 	menu.show_load_panel()
@@ -874,6 +886,7 @@ func load_and_play(path: String) -> void:
 		_collapse_days = 0
 		_collapse_shown = false
 		_tutorial_last = -1  # 读档不补发引导奖励
+		event_mgr.reset()
 		hud.hide_collapse_panel()
 		_game_started = true
 		resume_play()
@@ -927,18 +940,19 @@ func _process(delta: float) -> void:
 	# 昼夜色温：让一天的时间流动肉眼可见（白天亮 → 黄昏橙 → 夜晚蓝暗 → 黎明回暖）
 	var tod := time_mgr.time_of_day
 	var col := Color(1, 1, 1)
-	if tod < 0.12:
-		col = Color(0.5, 0.55, 0.8)
-	elif tod < 0.17:
-		col = Color(0.5, 0.55, 0.8).lerp(Color(1, 1, 1), (tod - 0.12) / 0.05)
+	var night := Color(0.5, 0.55, 0.8)
+	if tod < 0.15:
+		col = night
+	elif tod < 0.2:
+		col = night.lerp(Color(1, 1, 1), (tod - 0.15) / 0.05)
 	elif tod < 0.7:
 		col = Color(1, 1, 1)
 	elif tod < 0.8:
-		col = Color(1, 1, 1).lerp(Color(1.0, 0.8, 0.6), (tod - 0.7) / 0.1)
-	elif tod < 0.88:
-		col = Color(1.0, 0.8, 0.6).lerp(Color(0.45, 0.5, 0.75), (tod - 0.8) / 0.08)
+		col = Color(1, 1, 1).lerp(Color(1.0, 0.82, 0.62), (tod - 0.7) / 0.1)
+	elif tod < 0.85:
+		col = Color(1.0, 0.82, 0.62).lerp(night, (tod - 0.8) / 0.05)
 	else:
-		col = Color(0.45, 0.5, 0.75)
+		col = night
 	day_tint.color = day_tint.color.lerp(col, clampf(delta * 3.0, 0.0, 1.0))
 	# 袭击警告横幅（傍晚到点挂出）
 	raid.tick(current_era())
@@ -959,7 +973,10 @@ func _unhandled_input(event: InputEvent) -> void:
 		return
 	# 空格：1×/2×/4× 循环倍速（项目无 Timer/音效依赖，仅寻路负载在 4× 下需留意）
 	if key != null and key.pressed and key.keycode == KEY_SPACE and not key.echo and _game_started:
-		Engine.time_scale = 1.0 if Engine.time_scale >= 4.0 else Engine.time_scale * 2.0
+		if Engine.time_scale <= 0.0:
+			Engine.time_scale = _paused_speed  # 暂停中按空格 = 恢复
+		else:
+			Engine.time_scale = 1.0 if Engine.time_scale >= 4.0 else Engine.time_scale * 2.0
 		hud.show_toast("游戏速度 ×%d" % int(Engine.time_scale), 1.5)
 		return
 	# 快捷键：B 建造菜单 / L 村民列表

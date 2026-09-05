@@ -291,3 +291,66 @@
 ### 测试结论
 - run_gate：**GO**（9 项；--import 零解析错误；smoke/menu/play 全过；logic_test 89/89）。
 - 遗留（迭代7）：economy_sim 补森林维度与通勤敏感性（模拟 agent 预案已给）、倍速细化（P 暂停）、设置面板实体化、新 UI 自动化断言（collapse/tutorial）、正式美术。
+
+
+---
+
+## 迭代 7（已完成 · 用户定向：丰富前期体验（不止加建筑）+ UI/交互改善；用户选择：事件卡=暂停等待选择、不要愿望系统、建造菜单按功能分组）
+
+### 新系统
+1. **随机事件系统**（新文件 event_manager.gd，302 行，RaidManager 注入模式 + PROCESS_MODE_ALWAYS）：
+   - 事件池 6 个（流浪工匠/行商队/丰收祭/暴雨/走失的羊群/猎户来投），era 过滤 + 8 天冷却 + 2~4 天排期；
+   - **事件卡模态暂停**（用户指定交互）：弹出即暂停树，选择后恢复；效果统一解释器 apply_effects（villager/food/gold/wool/mood/rain_tomorrow）；
+   - 暴雨：前一天预告，次日 farm/fisher no_prod_today 停产（Building 新增标记，hud 状态行「⛈ 暴雨停产」）；
+   - 节日 buff：mood_bonus/mood_days_left，main._update_happiness 并入，日结后递减。
+2. **建造菜单红警式分组**：catalog 24 条目全部加 group（食物/资源/民生/生产/防御 5 组）；建造面板顶部 Tab 排（当前组高亮 ▼），ScrollContainer 内 5 组 Grid 切换。
+3. **通知日志**：show_toast 全量留档（最近 20 条），顶栏「日志」按钮 → 右下角面板查看——toast 不再丢消息。
+4. **昼夜色温**：CanvasModulate 按 time_of_day 插值（夜蓝暗 0.5,0.55,0.8 → 黄昏橙 1.0,0.8,0.6 → 白天全亮），夜晚空转肉眼可见；只影响世界画布，UI 层独立不受影响。
+5. **操作手感**：滚轮缩放锚定鼠标位置（缩放前后鼠标下世界点不动）；按住中键拖动平移镜头；P 暂停/恢复（记忆暂停前倍速）；B/L 快捷键开建造/村民面板；顶栏「人口/空闲/无房」改为可点击按钮，点击循环定位空闲村民。
+6. **分配反馈**：assign_worker 增加 silent 参数——手动 ± 失败播报原因（岗位满/无空闲村民/四周被堵），一键招满与自动招工静默；一键招满完成播报「已补 N 名工人」。
+
+### 修复
+| # | 修复 | 文件 |
+|---|------|------|
+| 1 | needs_water 提示死代码（分支在 return 后永不执行——探索 agent 发现） | hud.gd |
+| 2 | 实机门禁抓到 3 个解析级问题：续行符后跟制表符（「Expected new line after \"」）、play_test 类型推断 ×3、hud pop 未声明——全部修复 | main.gd / play_test.gd / hud.gd |
+
+### 测试结论
+- run_gate：**GO**（--import 零解析错误；smoke/menu/play 全过；logic_test **PASS=173/FAIL=0**——新增 [7] 事件池结构+分组覆盖断言；play_test 新增事件效果断言）。
+- 实机门禁本轮再次证明价值：3 个解析级问题全部由门禁在归档前拦下。
+- 遗留（迭代8）：事件卡自动选择倒计时可选项、事件入档一致性（暴雨跨存档）、正式美术、音效、设置面板全屏。
+
+
+---
+
+## 迭代 8（已完成）
+
+### 分析（2 agent：debug 回归【便携版 Godot 实测】/ 逻辑平衡）
+1. **debug 实测**（用便携版 Godot 运行主场景取实时布局）——**静态工具与人工审读都盲区的整族问题**：
+   ①`PRESET_BOTTOM_RIGHT` 只设右/下偏移的日志面板向右下展开=整面板画在屏幕外（迭代7 特性实际不可用）；
+   ②全项目 `PRESET_CENTER` 面板（主菜单×3/详情×2/覆灭/事件卡）锚点钉在中心"点"上向右下展开=都不居中，
+   1280×720 下主菜单状态行完全在屏外；③顶栏最坏文案 1329px>1280（日志按钮挤占余量）。
+   修复统一直接实测验证。
+2. **逻辑**：apply_effects 非原子（食物不足照样得金币/节日 buff）；收留类事件无住房预判+错过当日
+   reassign → "负收益收留"（无房 -30 压垮幸福均值 60 双移民闸）；事件状态跨局泄漏（幽灵暴雨日/
+   幽灵 buff/冷却锁死）；pop==0 仍弹事件卡（覆灭救援叙事怪）；暴雨卡在无农田渔屋时是零效果浪费。
+3. **正面核对**：事件卡模态密闭（ESC/P/点击全被挡）；事件排期使短测试不触发卡（论证可靠）；
+   双移民+渔屋+开局 40/30 时间线：时代Ⅱ ≈ 第 6~7 天（原 11 分钟→6~7 分钟），决策密度 ≈2 次/分钟
+   达标；mood 与袭击士气叠加无溢出。
+
+### 修复清单（全部落地，run_gate GO + logic_test 173/173）
+| # | 修复 | 文件 |
+|---|------|------|
+| 1 | event_mgr.reset()：next_event_day/rainy_day/mood/_last_event_day 跨局清零；new_game/load_and_play 调用 | event_manager.gd / main.gd |
+| 2 | apply_effects 原子化：负向资源合并一次 try_spend 预检，任一不足整单放弃（绝不白给金币/buff）；villager 落地后立刻 reassign_homes（消除"无房第一晚"） | event_manager.gd |
+| 3 | 事件卡选项预判置灰：收留需住房空位、食物不足置灰并注明 | event_manager.gd |
+| 4 | 暴雨事件过滤：无农田且无渔屋不弹；事件在人口 0 时不弹（覆灭面板是正主） | event_manager.gd |
+| 5 | 面板 grow 家族修复：日志面板 BEGIN/BEGIN 入屏；覆灭/事件卡/主菜单三面板 BOTH 真居中；详情面板恢复被误删的 offset_left=-200 并补 grow | hud/main_menu/event_manager |
+| 6 | 暴雨停产状态行「⛈ 暴雨停产（今日）」 | hud.gd |
+| 7 | 顶栏 era 标签 clip_text+省略号+EXPAND_FILL（720p 最坏 1329px 溢出兜底） | hud.gd |
+| 8 | 暂停态按空格=恢复（原 0×2=0 弹「×0」误导）；夜色两端统一 (0.5,0.55,0.8) 且边界对齐 is_night 0.15/0.85 | main.gd |
+| 9 | 事件收留/住房预判联动 reassign（同 2）；暴雨状态行与渔屋 desc 补充一致 | event_manager.gd |
+
+### 测试结论
+- run_gate：**GO**（--import 零解析错误；smoke/menu/play 全过；logic_test 173/173）。
+- 遗留（迭代9）：事件效果入档（暴雨/事件冷却跨存档——reset 方案已覆盖跨局污染，单局内存档回滚重排可接受）、economy_sim 补森林/事件维度、倍速细化、设置面板全屏、正式美术。
