@@ -389,3 +389,12 @@
   本项目唯一可靠的回归防线这一结论再次成立。
 - 遗留（迭代10+）：事件效果/冷却入档、economy_sim 同步迭代5-8 公式、倍速与设置面板实体化（全屏/键位）、
   音效、正式美术、村民列表饥饿排序保持滚动位置。
+
+
+## GitHub 推送记录
+
+- 远端：https://github.com/maskyourface/KingdomBuilder-.git（master）
+- **stable-iter9 标签已推送**：迭代 9 完成（run_gate 9 项 GO / logic_test 173/173 / 实机 4 套件全绿）的
+  已验证基线。
+- 流程固化：此后每完成一套迭代（分析→修复→run_gate GO→归档）即 commit + push，
+  并打 `stable-iterN` 标签作为回滚点。
