@@ -21,6 +21,10 @@ var grid: GridManager = null  # GridManager，由 main 注入（森林消耗/种
 var workers: Array = []     # 被分配来上班的 Villager
 var residents: Array = []   # 住在这里的 Villager（小屋用）
 
+var level := 1              # 建筑等级（1 起，见 catalog 的 upgrade 块）；存档用
+## 原料优先级（0 高 / 1 常 / 2 低）：生产结算按节点顺序先到先得，
+## main 把这个值实现为节点顺序，所以本文件的生产逻辑一行都不用改。存档用。
+var priority := 1
 var timer := 0.0            # 生产进度计时（存档用）
 var hp := -1                # -1 = 不可破坏；城墙/城门有耐久，存档用
 var last_sale := {}         # 市场：昨日成交 {"gold":int, "items":{type:int}}（详情面板显示）
@@ -56,7 +60,7 @@ func setup(p_data: Dictionary, p_origin: Vector2i,
 	time_mgr = p_time
 	raid = p_raid
 	grid = p_grid
-	hp = int(data.get("hp", -1))
+	hp = eff_max_hp()
 	uid = alloc_uid()
 	position = Vector2(origin.x * GridManager.TILE, origin.y * GridManager.TILE)
 
@@ -64,6 +68,151 @@ func setup(p_data: Dictionary, p_origin: Vector2i,
 func world_pos() -> Vector2:
 	var size: Vector2i = data.get("size", Vector2i.ONE)
 	return position + Vector2(size.x, size.y) * GridManager.TILE / 2.0
+
+# ---------- 建筑等级（升级系统） ----------
+## catalog 的 upgrade 块：{cost, max_level, titles, 以及各项每级增量}。
+## 增量键：speed(生产提速倍率) / workers(工位) / housing(住房) / aura(光环半径)
+##   / serves(酒馆服务) / sell_cap(市场日上限) / hp(耐久) / radius(工作半径)
+##   / damage(箭塔伤害) / range(箭塔射程) / buy_budget(贸易站日支出)
+## 所有消费方一律读下面的 eff_* 生效值，绝不直接读 data 里的基础值。
+
+## 某项加成的累计量 = 每级增量 × (等级-1)
+func level_bonus(key: String) -> float:
+	var up: Dictionary = data.get("upgrade", {})
+	return float(up.get(key, 0.0)) * float(level - 1)
+
+func max_level() -> int:
+	var up: Dictionary = data.get("upgrade", {})
+	return int(up.get("max_level", 1))
+
+func can_upgrade() -> bool:
+	return level < max_level()
+
+## 升下一级的造价：基础 cost × 当前等级（1→2 为 ×1，2→3 为 ×2，越往上越贵）
+func upgrade_cost() -> Array:
+	var up: Dictionary = data.get("upgrade", {})
+	var out: Array = []
+	for c in up.get("cost", []):
+		out.append([c[0], int(c[1]) * level])
+	return out
+
+## 已投入的总造价（建造 + 历次升级），拆除退款按它的一半算
+func total_investment() -> Array:
+	var acc := {}
+	for c in data.get("cost", []):
+		acc[c[0]] = int(acc.get(c[0], 0)) + int(c[1])
+	var up: Dictionary = data.get("upgrade", {})
+	for lv in range(1, level):
+		for c in up.get("cost", []):
+			acc[c[0]] = int(acc.get(c[0], 0)) + int(c[1]) * lv
+	var out: Array = []
+	for t in acc:
+		out.append([t, int(acc[t])])
+	return out
+
+## 带等级的显示名：「面包房 Lv2 大面包房」
+func display_title() -> String:
+	var base := String(data.get("name", "建筑"))
+	if level <= 1:
+		return base
+	var titles: Array = data.get("upgrade", {}).get("titles", [])
+	var idx := level - 2
+	if idx >= 0 and idx < titles.size():
+		return "%s Lv%d·%s" % [base, level, String(titles[idx])]
+	return "%s Lv%d" % [base, level]
+
+# ---- 生效值（等级加成后的实际参数） ----
+
+func eff_workers() -> int:
+	var base := int(data.get("workers", 0))
+	if base <= 0:
+		return 0
+	return base + int(level_bonus("workers"))
+
+func eff_housing() -> int:
+	var base := int(data.get("housing", 0))
+	if base <= 0:
+		return 0
+	return base + int(level_bonus("housing"))
+
+## 生产周期：提速是除法（speed=0.5 → 周期 ÷1.5），避免整数产量被乘出小数
+func eff_interval() -> float:
+	return float(data.get("interval", 5.0)) / (1.0 + level_bonus("speed"))
+
+func eff_aura() -> float:
+	var base := float(data.get("aura_radius", 0.0))
+	if base <= 0.0:
+		return 0.0
+	return base + level_bonus("aura")
+
+func eff_serves() -> int:
+	return int(data.get("serves", 0)) + int(level_bonus("serves"))
+
+func eff_sell_cap(fallback: int) -> int:
+	return int(data.get("sell_cap", fallback)) + int(level_bonus("sell_cap"))
+
+func eff_buy_budget(fallback: int) -> int:
+	return fallback + int(level_bonus("buy_budget"))
+
+func eff_max_hp() -> int:
+	var base := int(data.get("hp", -1))
+	if base < 0:
+		return -1
+	return base + int(level_bonus("hp"))
+
+## 城堡：当前这一期给全体的幸福加成
+func eff_castle_bonus() -> float:
+	var base := float(data.get("castle_bonus", 0.0))
+	if base <= 0.0:
+		return 0.0
+	return base + level_bonus("crown")
+
+## 学堂：点化半径与每日名额
+func eff_teach_radius() -> float:
+	var base := float(data.get("teach_radius", 0.0))
+	if base <= 0.0:
+		return 0.0
+	return base + level_bonus("teach_radius")
+
+func eff_teach_slots() -> int:
+	var base := int(data.get("teach_slots", 0))
+	if base <= 0:
+		return 0
+	return base + int(level_bonus("teach_slots"))
+
+## 篝火：吓退野狼 / 冬季集中供暖的半径
+func eff_scare_radius() -> float:
+	var base := float(data.get("scares_wolves", 0.0))
+	if base <= 0.0:
+		return 0.0
+	return base + level_bonus("scare")
+
+## 粮仓：把生食保鲜线抬高多少（腐坏计算用）
+func eff_keeps_food() -> int:
+	var base := int(data.get("keeps_food", 0))
+	if base <= 0:
+		return 0
+	return base + int(level_bonus("keeps"))
+
+func eff_work_radius() -> float:
+	return float(data.get("work_radius", 0.0)) + level_bonus("radius")
+
+func eff_shoot_range() -> float:
+	var base := float(data.get("shoots_range", 0.0))
+	if base <= 0.0:
+		return 0.0
+	return base + level_bonus("range")
+
+func eff_shoot_damage() -> int:
+	return int(data.get("shoots_damage", 10)) + int(level_bonus("damage"))
+
+## 实际升级（造价已由调用方 main.upgrade_building 扣过）：
+## 升级顺带把城墙/城门修满——重砌一遍本来就该恢复耐久
+func apply_upgrade() -> void:
+	level += 1
+	if hp >= 0:
+		hp = eff_max_hp()
+	queue_redraw()
 
 func _process(delta: float) -> void:
 	# 白天有人到岗就记一天出勤（幸福度光环/市场日结都在深夜跑，现场点人数恒为 0）
@@ -94,22 +243,32 @@ func _process(delta: float) -> void:
 	# 幸福度 ≥70：全民干劲足，生产 +20%
 	var rate := 1.2 if resources.happiness >= 70.0 else 1.0
 
-	var max_workers: int = data.get("workers", 0)
+	var max_workers: int = eff_workers()
 	if max_workers > 0:
 		var present := _count_present_workers()
 		if present == 0:
 			return
-		# 按在岗比例推进：1/2 人 = 半速
-		timer += delta * rate * float(present) / float(max_workers)
+		# 按在岗"人力"推进：满编 = 满速；工人的特长直接改变这条产线的产速，
+		# 所以把勤劳/手巧的人放进瓶颈产线是有真实收益的决策
+		timer += delta * rate * crew_power() / float(max_workers)
 	else:
 		timer += delta * rate
 
-	if timer >= data.get("interval", 5.0):
+	if timer >= eff_interval():
 		timer = 0.0
 		resources.try_spend(inputs)
 		for out in data.get("outputs", []):
 			resources.add(out[0], out[1])
 		_consume_or_plant()
+
+## 在岗班组折合多少个标准人力（每人 0.85~1.35，见 Villager.work_efficiency）。
+## 出勤/停工判定仍用 _count_present_workers 的人头数，只有产速吃这个。
+func crew_power() -> float:
+	var p := 0.0
+	for w in workers:
+		if is_instance_valid(w) and w.state == Villager.State.WORKING and w.workplace == self:
+			p += w.work_efficiency(self)
+	return p
 
 func _count_present_workers() -> int:
 	var n := 0
@@ -122,14 +281,14 @@ func _count_present_workers() -> int:
 func _terrain_near(type: int) -> Vector2i:
 	if grid == null:
 		return Vector2i(-1, -1)
-	var wr := int(float(data.get("work_radius", 2.0)))
+	var wr := int(eff_work_radius())
 	return grid.find_random_terrain_near(origin, data.get("size", Vector2i.ONE), type, wr)
 
 ## 工作半径内指定地形的格数（详情面板"剩余可砍/可种"用；跳过建筑占格）
 func count_terrain_near(type: int, avoid_road := false) -> int:
 	if grid == null:
 		return 0
-	var wr := int(float(data.get("work_radius", 2.0)))
+	var wr := int(eff_work_radius())
 	var size: Vector2i = data.get("size", Vector2i.ONE)
 	var n := 0
 	for x in range(origin.x - wr, origin.x + size.x + wr):
@@ -165,7 +324,7 @@ func _consume_or_plant() -> void:
 func _terrain_near_road_free(type: int) -> Vector2i:
 	if grid == null:
 		return Vector2i(-1, -1)
-	var wr := int(float(data.get("work_radius", 2.0)))
+	var wr := int(eff_work_radius())
 	return grid.find_random_terrain_near(origin, data.get("size", Vector2i.ONE), type, wr, true)
 
 ## 受攻击（仅城墙/城门等有耐久的建筑）；返回 true 表示被摧毁
@@ -178,7 +337,7 @@ func take_damage(amount: int) -> bool:
 
 ## 箭塔：有人在岗时自动射击射程内的强盗（补刀优先）
 func _update_shooting(delta: float) -> void:
-	var range_cells := float(data.get("shoots_range", 0.0))
+	var range_cells := eff_shoot_range()
 	if range_cells <= 0.0:
 		return
 	if _shot_fx > 0.0:
@@ -214,14 +373,14 @@ func _update_shooting(delta: float) -> void:
 	_shot_cd = float(data.get("shoots_interval", 1.5))
 	_shot_fx = 0.15
 	_shot_target = best.position - position
-	best.take_damage(int(data.get("shoots_damage", 10)), self)
+	best.take_damage(eff_shoot_damage(), self)
 	queue_redraw()
 
 ## 生产进度 0~1，详情面板的进度条用；不生产或停工时返回当前值
 func progress() -> float:
 	if not data.get("produces", false):
 		return 0.0
-	return clampf(timer / data.get("interval", 5.0), 0.0, 1.0)
+	return clampf(timer / eff_interval(), 0.0, 1.0)
 
 func _draw() -> void:
 	var size: Vector2i = data.get("size", Vector2i.ONE)
@@ -269,11 +428,28 @@ func _draw() -> void:
 	draw_string(font, text_pos, bname,
 		HORIZONTAL_ALIGNMENT_CENTER, rect.size.x, font_size, Color(1, 1, 1, 0.95))
 	# 城墙/城门血条（受损才显示）
-	var max_hp := int(data.get("hp", -1))
+	var max_hp := eff_max_hp()
 	if hp >= 0 and hp < max_hp:
 		var ratio := clampf(float(hp) / float(maxi(max_hp, 1)), 0.0, 1.0)
 		draw_rect(Rect2(rect.position + Vector2(0, -5), Vector2(rect.size.x, 3)), Color(0.2, 0.2, 0.2))
 		draw_rect(Rect2(rect.position + Vector2(0, -5), Vector2(rect.size.x * ratio, 3)), Color(0.3, 0.9, 0.3))
+	# 优先级角标：左上角一个小三角（高=红上箭、低=蓝下箭），常规不画
+	if priority != 1 and not data.get("inputs", []).is_empty():
+		var pc := Color(1.0, 0.45, 0.35) if priority == 0 else Color(0.45, 0.7, 1.0)
+		var px := rect.position.x + 2
+		var py := rect.position.y + 2
+		if priority == 0:
+			draw_colored_polygon(PackedVector2Array([Vector2(px + 3, py),
+				Vector2(px + 6, py + 6), Vector2(px, py + 6)]), pc)
+		else:
+			draw_colored_polygon(PackedVector2Array([Vector2(px, py),
+				Vector2(px + 6, py), Vector2(px + 3, py + 6)]), pc)
+	# 等级角标：右上角画 level-1 个金色小方块，升过级的建筑在地图上一眼可辨
+	if level > 1:
+		for i in (level - 1):
+			var px := rect.end.x - 4 - i * 5
+			draw_rect(Rect2(px - 3, rect.position.y + 1, 3, 3), Color(0, 0, 0, 0.6))
+			draw_rect(Rect2(px - 4, rect.position.y, 3, 3), Color(1.0, 0.85, 0.3))
 	# 箭塔射击特效：一条从塔心到目标的短暂亮线
 	if _shot_fx > 0.0:
 		draw_line(rect.get_center(), _shot_target, Color(1.0, 0.9, 0.3, 0.8), 2.0)

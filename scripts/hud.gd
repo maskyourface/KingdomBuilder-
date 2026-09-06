@@ -47,6 +47,8 @@ const GUIDE_STEPS: Array[String] = [
 const BUILD_GROUP_NAMES := {
 	"food": "食物", "resource": "资源", "life": "民生", "produce": "生产", "defense": "防御",
 }
+## 职能条线（catalog 的 sector），只用于显示：让「这个时代该补哪一块」一眼可读
+const SECTOR_NAMES := {"military": "军事", "economy": "经济", "civic": "民生"}
 var _current_tab := "food"
 var _grids := {}
 var _tab_buttons := {}
@@ -54,11 +56,18 @@ var _tab_buttons := {}
 var _guide_panel: PanelContainer
 var _guide_title: Label
 var _guide_body: Label
+var _advisor_text := ""  # 当前顾问提示（变化时才重建文本，别每 0.5 秒刷一次布局）
 var _guide_step := -1
 
 # 覆灭面板（王国覆灭时的唯一出口）
 var _log_panel: PanelContainer
 var _log_list: Label
+var _overview_panel: PanelContainer
+var _overview_list: Label
+var _overview_visible := false
+var _month_panel: PanelContainer
+var _month_list: Label
+var _month_visible := false
 var _log_lines: Array[String] = []
 var _log_visible := false
 var _collapse_panel: PanelContainer
@@ -73,6 +82,8 @@ var _status_label: Label
 var _worker_label: Label
 var _housing_label: Label
 var _sale_label: Label
+var _upgrade_btn: Button
+var _priority_btn: Button
 var _current_building = null
 
 # 村民列表 + 村民详情
@@ -155,6 +166,10 @@ func _build_ui() -> void:
 	villager_toggle.text = "村民列表"
 	villager_toggle.pressed.connect(_toggle_villager_panel)
 	top_row.add_child(villager_toggle)
+	var overview_btn := Button.new()
+	overview_btn.text = "概览"
+	overview_btn.pressed.connect(_toggle_overview_panel)
+	top_row.add_child(overview_btn)
 	var log_btn := Button.new()
 	log_btn.text = "日志"
 	log_btn.pressed.connect(_toggle_log_panel)
@@ -173,9 +188,19 @@ func _build_ui() -> void:
 	top_row.add_child(load_btn)
 
 	var res_row := HBoxContainer.new()
-	res_row.add_theme_constant_override(&"separation", 16)
+	res_row.add_theme_constant_override(&"separation", 10)
 	top_col.add_child(res_row)
+	var month_btn := Button.new()
+	month_btn.text = "月报"
+	month_btn.tooltip_text = "每月收支明细（快捷键 R）"
+	month_btn.pressed.connect(_toggle_month_panel)
+	res_row.add_child(month_btn)
 	_resource_label = Label.new()
+	# 资源种类多了以后顶栏必然放不下：这里只保留一行（超出省略），
+	# 完整口径一律看「月报」面板——顶栏一旦换行会把袭击横幅的固定偏移顶穿
+	_resource_label.clip_text = true
+	_resource_label.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
+	_resource_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	res_row.add_child(_resource_label)
 
 	# ---- 袭击横幅（顶栏下方居中，常驻直到 raid 清空 banner_text） ----
@@ -343,8 +368,18 @@ func _build_ui() -> void:
 	_sale_label.visible = false
 	detail_box.add_child(_sale_label)
 
+	# 原料优先级：只对"要吃原料"的建筑显示（无原料的建筑不参与争抢）
+	_priority_btn = Button.new()
+	_priority_btn.pressed.connect(_on_cycle_priority)
+	detail_box.add_child(_priority_btn)
+
+	# 升级按钮：文案带下一级造价与收益，满级/不可升级时自动隐藏
+	_upgrade_btn = Button.new()
+	_upgrade_btn.pressed.connect(_on_upgrade_current)
+	detail_box.add_child(_upgrade_btn)
+
 	var demolish_btn := Button.new()
-	demolish_btn.text = "拆除（退一半造价）"
+	demolish_btn.text = "拆除（退一半投入）"
 	demolish_btn.pressed.connect(_on_demolish_current)
 	detail_box.add_child(demolish_btn)
 	var close_btn := Button.new()
@@ -371,6 +406,7 @@ func _build_ui() -> void:
 	_vd_title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	vd_box.add_child(_vd_title)
 	_vd_state = Label.new()
+	_vd_state.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	vd_box.add_child(_vd_state)
 	var hunger_title := Label.new()
 	hunger_title.text = "饥饿度"
@@ -409,6 +445,8 @@ func _build_ui() -> void:
 	_guide_title.add_theme_font_size_override(&"font_size", 14)
 	guide_box.add_child(_guide_title)
 	_guide_body = Label.new()
+	_guide_body.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_guide_body.custom_minimum_size = Vector2(330, 0)  # 顾问提示比引导长，给个固定宽度好换行
 	_guide_body.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_guide_body.add_theme_color_override(&"font_color", Color(0.92, 0.88, 0.78))
 	guide_box.add_child(_guide_body)
@@ -426,6 +464,33 @@ func _build_ui() -> void:
 	_log_list = Label.new()
 	_log_list.add_theme_font_size_override(&"font_size", 13)
 	_log_panel.add_child(_log_list)
+
+	# ---- 王国概览（按 T 或顶栏「概览」）：每种资源的昨日进出与净额、存粮天数、
+	# 冬季柴火缺口、停工盘点。城建游戏最缺的就是"我到底在赚还是在亏"这一眼。
+	_overview_panel = PanelContainer.new()
+	_overview_panel.set_anchors_preset(Control.PRESET_CENTER_LEFT)
+	_overview_panel.offset_left = 12
+	_overview_panel.grow_horizontal = Control.GROW_DIRECTION_END
+	_overview_panel.grow_vertical = Control.GROW_DIRECTION_BOTH
+	_overview_panel.visible = false
+	_overview_panel.mouse_filter = Control.MOUSE_FILTER_STOP
+	root.add_child(_overview_panel)
+	_overview_list = Label.new()
+	_overview_list.add_theme_font_size_override(&"font_size", 13)
+	_overview_panel.add_child(_overview_list)
+
+	# ---- 月度收支面板（群星式：按分类列出每种资源的月进项/月支出/净额） ----
+	_month_panel = PanelContainer.new()
+	_month_panel.set_anchors_preset(Control.PRESET_CENTER_RIGHT)
+	_month_panel.offset_right = -12
+	_month_panel.grow_horizontal = Control.GROW_DIRECTION_BEGIN
+	_month_panel.grow_vertical = Control.GROW_DIRECTION_BOTH
+	_month_panel.visible = false
+	_month_panel.mouse_filter = Control.MOUSE_FILTER_STOP
+	root.add_child(_month_panel)
+	_month_list = Label.new()
+	_month_list.add_theme_font_size_override(&"font_size", 13)
+	_month_panel.add_child(_month_list)
 
 	# ---- 覆灭面板（全屏遮罩；王国覆灭时的唯一出口） ----
 	_collapse_dim = ColorRect.new()
@@ -477,7 +542,7 @@ func _build_ui() -> void:
 	hint.offset_top = -28
 	hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	hint.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	hint.text = "左键放置/查看 · 右键取消/两次确认拆除/拖动拆路 · 中键拖动平移 · 空格倍速 · P 暂停 · B 建造 · L 村民 · WASD/滚轮"
+	hint.text = "左键放置/查看 · 右键取消/两次确认拆除/拖动拆路 · 中键平移 · 空格倍速 · P 暂停 · B 建造 · L 村民 · T 概览 · WASD/滚轮"
 	root.add_child(hint)
 	# 按钮不抢焦点：否则点过按钮后 Space（ui_accept）会被焦点按钮吃掉，
 	# 倍速失效不说，焦点在「保存」上还会连发存档
@@ -529,6 +594,10 @@ func _terrain_hint(data: Dictionary) -> String:
 		return "·需石林"
 	if data.get("needs_water", false):
 		return "·需水域"
+	if data.get("needs_clay", false):
+		return "·需黏土"
+	if data.get("needs_iron", false):
+		return "·需铁脉"
 	return ""
 
 func _switch_tab(group: String) -> void:
@@ -572,6 +641,140 @@ func show_toast(text: String, seconds := 4.0) -> void:
 		var oldest: Dictionary = _toasts.pop_front()
 		oldest["panel"].queue_free()
 
+## 概览面板开关（顶栏「概览」按钮 / T 键）
+func _toggle_overview_panel() -> void:
+	_overview_visible = not _overview_visible
+	_overview_panel.visible = _overview_visible
+	if _overview_visible:
+		_refresh_overview_panel()
+
+## 概览正文：昨日流水是完整一天的账（今天还没过完，实时数会一直跳，不能拿来判断趋势）
+func _refresh_overview_panel() -> void:
+	var lines := PackedStringArray()
+	var pop: int = villagers_root.get_child_count()
+	lines.append("【王国概览】第 %d 天 · 人口 %d · 幸福 %d" % [
+		time_mgr.day, pop, int(resources.happiness)])
+	# 存粮天数：最该被一眼看到的数字
+	var days: float = main.food_days_left()
+	var food_tag := "存粮可撑 %.1f 天" % days
+	if days < 2.0:
+		food_tag = "⚠ " + food_tag + "（要断粮了）"
+	elif days < 4.0:
+		food_tag += "（偏紧）"
+	lines.append(food_tag)
+	# 冬季柴火：入冬前就要看到缺口，别等冻了才知道
+	var heat: int = main.winter_heat_need()
+	if heat > 0:
+		var until: int = time_mgr.days_until_winter()
+		var wood: int = resources.get_amount(ResourceManager.Type.WOOD)
+		var winter_total: int = heat * time_mgr.days_per_season
+		var head := "冬季取暖 %d 木/天，整冬约 %d 木（现存 %d）" % [heat, winter_total, wood]
+		if wood < winter_total:
+			head = "⚠ " + head + "，缺 %d" % (winter_total - wood)
+		if not time_mgr.is_winter() and until <= 5:
+			head += "｜距冬季 %d 天" % until
+		lines.append(head)
+	# 腐坏保鲜线：建了粮仓就该看得见它到底顶了多少
+	var pop_keep: int = main.food_keep_base()
+	var gran: int = main.granary_capacity()
+	if not time_mgr.is_winter():
+		var raw: int = resources.get_amount(ResourceManager.Type.FOOD)
+		var keep_line: int = main.food_keep_line()
+		var tag2 := "生食保鲜线 %d（人口线 %d + 粮仓 %d），现存 %d" % [keep_line, pop_keep, gran, raw]
+		if raw > keep_line:
+			tag2 = "⚠ " + tag2 + " → 明晨腐坏约 %d" % int(ceil(float(raw - keep_line) * 0.2))
+		lines.append(tag2)
+	lines.append("——— 昨日流水（进 / 出 / 净） ———")
+	var any_flow := false
+	for t in ResourceManager.Type.values():
+		var i_amt: int = int(resources.last_in.get(t, 0))
+		var o_amt: int = int(resources.last_out.get(t, 0))
+		if i_amt == 0 and o_amt == 0 and resources.get_amount(t) == 0:
+			continue  # 还没解锁的资源不占版面
+		any_flow = any_flow or i_amt != 0 or o_amt != 0
+		var net: int = i_amt - o_amt
+		var arrow := "＝"
+		if net > 0:
+			arrow = "▲"
+		elif net < 0:
+			arrow = "▼"
+		lines.append("  %s 存%d　+%d / −%d　%s%d" % [
+			ResourceManager.NAMES[t], resources.get_amount(t), i_amt, o_amt, arrow, absi(net)])
+	if not any_flow:
+		lines.append("  （第一天还没有完整流水，明天再来看）")
+	# 停工盘点：直接告诉玩家卡在哪，省得一栋栋点开看
+	var report: Dictionary = main.idle_building_report()
+	if report.is_empty():
+		lines.append("——— 生产线全部运转中 ———")
+	else:
+		var parts := PackedStringArray()
+		for why in report:
+			parts.append("%s×%d" % [why, int(report[why])])
+		lines.append("——— 停工：%s ———" % "、".join(parts))
+	_overview_list.text = "\n".join(lines)
+
+# ---------- 月度收支（仿群星的资源明细） ----------
+
+func _toggle_month_panel() -> void:
+	_month_visible = not _month_visible
+	_month_panel.visible = _month_visible
+	if _month_visible:
+		_refresh_month_panel()
+
+## 一个月 = 5 天（与一个季节等长）。窗口不满 5 天时按已有天数折算成整月，
+## 并在标题里写清"样本 N/5 天"——否则第 1 天的一次性收入会被放大 5 倍还看不出来
+func _refresh_month_panel() -> void:
+	var lines := PackedStringArray()
+	var days: int = resources.history_days()
+	lines.append("【每月收支】第 %d 天　1 月 = %d 天　样本 %d/%d 天" % [
+		time_mgr.day, ResourceManager.MONTH_DAYS, days, ResourceManager.MONTH_DAYS])
+	if days == 0:
+		lines.append("　（还没有跨过一天，明早再来看）")
+	lines.append("　%s%s%s%s%s" % [_pad("资源", 10), _lpad("库存", 8),
+		_lpad("月进项", 10), _lpad("月支出", 10), _lpad("净额", 10)])
+	var deficits := PackedStringArray()
+	for cat in ResourceManager.CATEGORIES:
+		var rows := PackedStringArray()
+		for t in cat["types"]:
+			var ti := int(t)
+			if not resources.is_relevant(ti):
+				continue
+			var m_in: float = resources.month_in(ti)
+			var m_out: float = resources.month_out(ti)
+			var net: float = m_in - m_out
+			rows.append("　%s%s%s%s%s" % [
+				_pad(String(ResourceManager.NAMES[ti]), 10),
+				_lpad(str(resources.get_amount(ti)), 8),
+				_lpad("+%.1f" % m_in, 10),
+				_lpad("-%.1f" % m_out, 10),
+				_lpad("%s%.1f" % ["+" if net >= 0.0 else "", net], 10)])
+			# 净额为负且库存撑不过一个月 → 记进警示行（群星的红字提醒）
+			if net < -0.05 and float(resources.get_amount(ti)) + net < 0.0:
+				deficits.append(String(ResourceManager.NAMES[ti]))
+		if rows.is_empty():
+			continue
+		lines.append("── %s ──" % String(cat["name"]))
+		for r in rows:
+			lines.append(r)
+	if not deficits.is_empty():
+		lines.append("⚠ 按当前速度，一个月内会耗尽：%s" % "、".join(deficits))
+	else:
+		lines.append("所有资源的月净额都撑得住一个月")
+	_month_list.text = "\n".join(lines)
+
+## 中日文等宽排版：CJK 字符按 2 个西文字符宽计算，否则列会参差不齐
+func _visual_width(text: String) -> int:
+	var w := 0
+	for i in text.length():
+		w += 2 if text.unicode_at(i) > 0x2000 else 1
+	return w
+
+func _pad(text: String, width: int) -> String:
+	return text + " ".repeat(maxi(0, width - _visual_width(text)))
+
+func _lpad(text: String, width: int) -> String:
+	return " ".repeat(maxi(0, width - _visual_width(text))) + text
+
 func _toggle_log_panel() -> void:
 	_log_visible = not _log_visible
 	_log_panel.visible = _log_visible
@@ -611,7 +814,7 @@ func _toggle_villager_panel() -> void:
 		_refresh_villager_list()
 
 ## 排序按钮循环文案（与 _sort_mode 一一对应）
-const SORT_LABELS: Array[String] = ["排序：默认", "排序：名字", "排序：饥饿"]
+const SORT_LABELS: Array[String] = ["排序：默认", "排序：名字", "排序：饥饿", "排序：特长"]
 
 ## 筛选/排序变化：置标志并失效签名，下一次 0.5s 低频刷新即按新条件重建列表
 func _on_filter_idle_toggled(pressed: bool) -> void:
@@ -643,6 +846,12 @@ func _refresh_villager_list() -> void:
 			villagers.sort_custom(func(a, b): return a.display_name < b.display_name)
 		2:
 			villagers.sort_custom(func(a, b): return a.hunger > b.hunger)
+		3:
+			# 按特长归类，同特长内按名字：要挑"勤劳的人"时不用一行行找
+			villagers.sort_custom(func(a, b):
+				if a.trait_id == b.trait_id:
+					return a.display_name < b.display_name
+				return String(a.trait_id) < String(b.trait_id))
 	# 签名=当前（过滤+排序后）序列的 uid 串：饿死/离开/读档/换序都会改变签名 → 重建重绑
 	var sig := "none"  # 空集合哨兵：与初始 _list_sig("") 区分，0 人口时也能亮出空提示
 	if not villagers.is_empty():
@@ -669,7 +878,10 @@ func _refresh_villager_list() -> void:
 				_list_buttons.append(btn)
 	for i in villagers.size():
 		var v = villagers[i]
-		_list_buttons[i].text = "%s｜%s｜饥饿%d%%" % [v.display_name, v.state_text(), int(v.hunger)]
+		# 有特长的才标出来：一列全是"寻常"没信息量，标出来的都是值得挑岗位的人
+		var tag: String = "" if v.trait_id == &"plain" else "·" + v.trait_name()
+		_list_buttons[i].text = "%s%s｜%s｜饥饿%d%%" % [
+			v.display_name, tag, v.state_text(), int(v.hunger)]
 	_vlist_title.text = "—— 村民 ——（显示 %d/共 %d）" % [villagers.size(), all_villagers.size()]
 
 func show_villager(v: Villager) -> void:
@@ -688,8 +900,9 @@ func _refresh_villager_details() -> void:
 		_current_villager = null
 		return
 	var v := _current_villager
-	_vd_title.text = v.display_name
-	_vd_state.text = "状态：%s　幸福度：%d" % [v.state_text(), int(v.happiness)]
+	_vd_title.text = "%s（%s）" % [v.display_name, v.trait_name()]
+	_vd_state.text = "状态：%s　幸福度：%d\n特长：%s——%s" % [
+		v.state_text(), int(v.happiness), v.trait_name(), v.trait_desc()]
 	_vd_hunger.value = v.hunger
 	if v.workplace != null and is_instance_valid(v.workplace):
 		_vd_work.text = "工作：%s" % v.workplace.data.get("name", "")
@@ -715,12 +928,14 @@ func show_building(b) -> void:
 	if b == null:
 		_details_panel.visible = false
 		return
-	_details_title.text = b.data.get("name", "建筑")
-	_details_info.text = _describe(b.data)
+	_details_title.text = b.display_title()
+	_details_info.text = _describe(b)
 	_details_panel.visible = true
 	_refresh_details()
 
-func _describe(data: Dictionary) -> String:
+## 详情正文：吃 Building 而不是 data，才能显示等级加成后的实际产能
+func _describe(b) -> String:
+	var data: Dictionary = b.data
 	var lines := PackedStringArray()
 	# 作用说明（catalog 的 desc 字段）：每个建筑是干什么的，一眼明确
 	if data.has("desc"):
@@ -732,7 +947,7 @@ func _describe(data: Dictionary) -> String:
 		if not inputs.is_empty():
 			recipe += _cost_text(inputs) + " → "
 		recipe += _cost_text(data.get("outputs", []))
-		lines.append("生产：%s / %d秒" % [recipe, int(data.get("interval", 5.0))])
+		lines.append("生产：%s / %.1f秒" % [recipe, b.eff_interval()])
 		if data.get("no_winter", false):
 			lines.append("冬季停产")
 	else:
@@ -741,6 +956,11 @@ func _describe(data: Dictionary) -> String:
 	if data.get("needs_mountain", false): lines.append("选址：需邻近石林")
 	if data.get("needs_berry", false): lines.append("选址：需邻近浆果丛")
 	if data.get("needs_water", false): lines.append("选址：需邻近水域")
+	if data.get("needs_clay", false): lines.append("选址：需邻近黏土滩")
+	if data.get("needs_iron", false): lines.append("选址：需邻近铁矿脉")
+	lines.append("职能：%s　解锁：时代%s" % [
+		SECTOR_NAMES.get(String(data.get("sector", "")), "综合"),
+		["Ⅰ", "Ⅱ", "Ⅲ", "Ⅳ", "Ⅴ"][clampi(int(data.get("min_era", 1)) - 1, 0, 4)]])
 	return "\n".join(lines)
 
 func _refresh_details() -> void:
@@ -749,16 +969,23 @@ func _refresh_details() -> void:
 		_current_building = null
 		return
 	var b = _current_building
-	var max_workers: int = b.data.get("workers", 0)
-	_worker_label.text = "工人 %d/%d" % [b.workers.size(), max_workers]
+	var max_workers: int = b.eff_workers()
+	# 班组效率：在岗人力 ÷ 满编人数。100% = 满编且全是寻常人，
+	# 高于 100% 说明班组里有勤劳/手巧的人——这是玩家调岗的直接反馈
+	var crew := ""
+	if max_workers > 0 and b.data.get("produces", false):
+		crew = "　效率 %d%%" % int(round(b.crew_power() / float(max_workers) * 100.0))
+	_worker_label.text = "工人 %d/%d%s" % [b.workers.size(), max_workers, crew]
 	_worker_label.get_parent().visible = max_workers > 0
 	_details_progress.visible = b.data.get("produces", false)
 	_details_progress.value = b.progress() * 100.0
 	_refresh_status_line(b)
-	var housing: int = b.data.get("housing", 0)
+	var housing: int = b.eff_housing()
 	_housing_label.visible = housing > 0
 	if housing > 0:
 		_housing_label.text = "住户 %d/%d" % [b.residents.size(), housing]
+	_refresh_upgrade_button(b)
+	_refresh_priority_button(b)
 	_refresh_sale_line(b)
 
 ## 停工原因提示：缺原料 / 缺工人 / 冬季停产 / 服务建筑未生效（正常时隐藏）
@@ -768,14 +995,15 @@ func _refresh_status_line(b) -> void:
 		if b.data.get("no_winter", false) and time_mgr.is_winter():
 			status = "❄ 冬季停产"
 		elif b.no_prod_today:
-			status = "⛈ 暴雨停产（今日）"
+			var why := String(main.event_mgr.halt_reason)
+			status = "⛈ %s停产（今日）" % (why if not why.is_empty() else "天灾")
 		elif b.depleted:
 			status = "周边森林已耗尽，停产中（建植树场补种）"
 		elif not resources.has_all(b.data.get("inputs", [])) \
 				and not (b.data.get("inputs", []) as Array).is_empty():
 			status = "缺原料，停工中"
 		else:
-			var need: int = b.data.get("workers", 0)
+			var need: int = b.eff_workers()
 			if need > 0:
 				var present: int = b._count_present_workers()
 				if present < need:
@@ -783,7 +1011,7 @@ func _refresh_status_line(b) -> void:
 	elif not b.data.get("aura_kind", "").is_empty() \
 			or b.data.get("auto_sells", false) or b.data.has("auto_buys"):
 		# 教堂/酒馆/市场/贸易站：没人在岗=今天信仰/娱乐/买卖全不生效
-		var need2: int = b.data.get("workers", 0)
+		var need2: int = b.eff_workers()
 		if need2 > 0 and not b.worked_today:
 			var present2: int = b._count_present_workers()
 			status = "缺工人（%d/%d 在岗），今日不生效" % [present2, need2]
@@ -821,6 +1049,88 @@ func _refresh_sale_line(b) -> void:
 	else:
 		_sale_label.text = "昨日成交：%s，+%d 金" % ["、".join(parts), gold]
 	_sale_label.visible = true
+
+## 升级按钮文案：「升级 Lv2 大面包房（木12、石5）」+ 下一级收益摘要；满级显示灰字
+func _refresh_upgrade_button(b) -> void:
+	if b.max_level() <= 1:
+		_upgrade_btn.visible = false
+		return
+	_upgrade_btn.visible = true
+	if not b.can_upgrade():
+		_upgrade_btn.disabled = true
+		_upgrade_btn.text = "已满级（Lv%d）" % b.level
+		return
+	var cost: Array = b.upgrade_cost()
+	_upgrade_btn.disabled = not resources.has_all(cost)
+	var gain := _upgrade_gain_text(b)
+	_upgrade_btn.text = "升级 Lv%d（%s）%s" % [b.level + 1, _cost_text(cost), gain]
+
+## 下一级带来什么：只列这栋建筑真正有增量的项，避免通用文案说废话
+func _upgrade_gain_text(b) -> String:
+	var up: Dictionary = b.data.get("upgrade", {})
+	var parts := PackedStringArray()
+	if float(up.get("speed", 0.0)) > 0.0:
+		parts.append("产速+%d%%" % int(float(up["speed"]) * 100.0))
+	if int(up.get("workers", 0)) > 0:
+		parts.append("工位+%d" % int(up["workers"]))
+	if int(up.get("housing", 0)) > 0:
+		parts.append("住房+%d" % int(up["housing"]))
+	if float(up.get("aura", 0.0)) > 0.0:
+		parts.append("光环+%.1f格" % float(up["aura"]))
+	if int(up.get("serves", 0)) > 0:
+		parts.append("服务+%d人" % int(up["serves"]))
+	if int(up.get("sell_cap", 0)) > 0:
+		parts.append("日限+%d金" % int(up["sell_cap"]))
+	if int(up.get("buy_budget", 0)) > 0:
+		parts.append("收购+%d金" % int(up["buy_budget"]))
+	if int(up.get("hp", 0)) > 0:
+		parts.append("耐久+%d" % int(up["hp"]))
+	if int(up.get("keeps", 0)) > 0:
+		parts.append("保鲜+%d" % int(up["keeps"]))
+	if float(up.get("scare", 0.0)) > 0.0:
+		parts.append("火光+%.1f格" % float(up["scare"]))
+	if int(up.get("crown", 0)) > 0:
+		parts.append("全体幸福+%d" % int(up["crown"]))
+	if int(up.get("teach_slots", 0)) > 0:
+		parts.append("授课+%d人" % int(up["teach_slots"]))
+	if float(up.get("teach_radius", 0.0)) > 0.0:
+		parts.append("学区+%.1f格" % float(up["teach_radius"]))
+	if float(up.get("radius", 0.0)) > 0.0:
+		parts.append("范围+%.0f格" % float(up["radius"]))
+	if int(up.get("damage", 0)) > 0:
+		parts.append("伤害+%d" % int(up["damage"]))
+	if float(up.get("range", 0.0)) > 0.0:
+		parts.append("射程+%.0f格" % float(up["range"]))
+	if parts.is_empty():
+		return ""
+	return "\n→ " + "、".join(parts)
+
+const PRIORITY_LABELS: Array[String] = ["高（先拿原料）", "常规", "低（最后拿原料）"]
+
+## 原料优先级按钮：只有需要投入原料的建筑才显示——
+## 没有 inputs 的建筑不从库存拿料，给它排优先级毫无意义
+func _refresh_priority_button(b) -> void:
+	if (b.data.get("inputs", []) as Array).is_empty():
+		_priority_btn.visible = false
+		return
+	_priority_btn.visible = true
+	_priority_btn.text = "原料优先级：%s" % PRIORITY_LABELS[clampi(b.priority, 0, 2)]
+
+func _on_cycle_priority() -> void:
+	if _current_building == null or not is_instance_valid(_current_building):
+		return
+	var nxt: int = (_current_building.priority + 1) % 3
+	main.set_building_priority(_current_building, nxt)
+	show_toast("%s 的原料优先级改为「%s」" % [
+		_current_building.data.get("name", "建筑"), PRIORITY_LABELS[nxt]], 2.5)
+	_refresh_details()
+
+func _on_upgrade_current() -> void:
+	if _current_building != null and is_instance_valid(_current_building):
+		if main.upgrade_building(_current_building):
+			_details_title.text = _current_building.display_title()
+			_details_info.text = _describe(_current_building)
+		_refresh_details()
 
 func _on_assign_worker() -> void:
 	if _current_building != null and is_instance_valid(_current_building):
@@ -878,6 +1188,10 @@ func _process(delta: float) -> void:
 	# 资源栏：脏标记每帧最多重建一次
 	if _res_dirty:
 		_refresh_resources()
+	if _overview_panel.visible:
+		_refresh_overview_panel()
+	if _month_panel.visible:
+		_refresh_month_panel()
 	if _details_panel.visible:
 		_refresh_details()
 	if _vdetail_panel.visible:
@@ -899,10 +1213,16 @@ func _refresh_lowfreq(era: int) -> void:
 		_last_season = time_mgr.season
 		_last_time_scale = Engine.time_scale
 		var until_winter := time_mgr.days_until_winter()
+		# 冬季要烧柴取暖，所以"距冬季"必须连带报出备柴量——
+		# 否则玩家只会囤粮，到了冬天才发现全村挨冻
+		var heat: int = main.winter_heat_need()
 		if time_mgr.is_winter():
-			_time_label.text = "%s（冬季中）" % time_mgr.day_text()
+			var wood: int = resources.get_amount(ResourceManager.Type.WOOD)
+			_time_label.text = "%s（冬季中）｜取暖 %d木/天（存%d）" % [
+				time_mgr.day_text(), heat, wood]
 		elif until_winter <= 5:
-			_time_label.text = "%s｜距冬季%d天" % [time_mgr.day_text(), until_winter]
+			_time_label.text = "%s｜距冬季%d天·需备柴%d木/天" % [
+				time_mgr.day_text(), until_winter, heat]
 		else:
 			_time_label.text = time_mgr.day_text()
 		if Engine.time_scale > 1.0:
@@ -939,25 +1259,67 @@ func _refresh_lowfreq(era: int) -> void:
 		if upgraded:
 			var t := "进入%s！%s" % [main.ERA_NAMES[era - 1], main.era_goal_progress()]
 			if era == 2:
-				t += "（提示：先建采石场贴着石林备石料）"
+				t += "（提示：先建采石场备石料；狼群从现在起会下山，用篝火照住食物产线）"
+			elif era == 3:
+				t += "（提示：学堂能把体弱/寻常的村民教成勤劳或手巧；"
+				t += "磨坊/酿酒坊抢小麦时用「原料优先级」定先后）"
+			elif era == 4:
+				t += "（提示：狼群换成强盗了——他们会拆墙、抢住房和市场）"
 			show_toast(t, 7.0)
 	_refresh_build_buttons()
-	# 新手引导：显示当前步骤；只在与村民列表重叠时让位（建造菜单在上方，可共存）
+	# 左下角面板：前 6 天走新手引导，引导毕业后换成顾问提示（"现在最该干什么"）。
+	# 只在与村民列表重叠时让位（建造菜单在上方，可共存）。
 	var step := int(main.tutorial_step())
-	if step != _guide_step:
-		_guide_step = step
-		if step > 0:
+	if step > 0:
+		if step != _guide_step or _advisor_text != "":
+			_guide_step = step
+			_advisor_text = ""
 			_guide_title.text = "▶ 引导 %d/6" % step
+			_guide_title.add_theme_color_override(&"font_color", Color(0.7, 0.95, 0.6))
 			_guide_body.text = GUIDE_STEPS[step - 1]
-	_guide_panel.visible = step > 0 and not _villager_panel.visible
+		_guide_panel.visible = not _villager_panel.visible
+	else:
+		_guide_step = 0
+		var hint: Dictionary = main.advisor_hint()
+		var text := String(hint.get("text", ""))
+		if text != _advisor_text:
+			_advisor_text = text
+			if not text.is_empty():
+				var lv := int(hint.get("level", 0))
+				_guide_title.text = ["提示", "注意", "告急"][clampi(lv, 0, 2)]
+				_guide_title.add_theme_color_override(&"font_color",
+					[Color(0.7, 0.85, 1.0), Color(1.0, 0.85, 0.4), Color(1.0, 0.5, 0.4)][clampi(lv, 0, 2)])
+				_guide_body.text = text
+		_guide_panel.visible = not _advisor_text.is_empty() and not _villager_panel.visible
 
 ## resources.changed 高频信号（每次产出/消费都发）：只置脏，_process 每帧最多重建一次
 func _mark_resources_dirty() -> void:
 	_res_dirty = true
 
+## 顶栏资源：只列"相关"的资源（核心 5 种常驻，其余有库存或本月动过才占位），
+## 每种后面贴月度净额——群星的口径，看的是趋势不是这一瞬间的库存
 func _refresh_resources() -> void:
 	var parts := PackedStringArray()
-	for t in ResourceManager.Type.values():
-		parts.append("%s %d" % [ResourceManager.NAMES[t], resources.get_amount(t)])
+	for t in _bar_order():
+		if not resources.is_relevant(t):
+			continue
+		var net: float = resources.month_net(t)
+		var tag := ""
+		if net >= 0.05:
+			tag = "▲%.1f" % net
+		elif net <= -0.05:
+			tag = "▼%.1f" % -net
+		parts.append("%s %d%s" % [ResourceManager.NAMES[t], resources.get_amount(t), tag])
 	_resource_label.text = "  ".join(parts)
 	_res_dirty = false
+
+## 顶栏顺序：核心资源在前（被省略号截掉的永远是最不紧要的深加工品），其余按分类顺序
+func _bar_order() -> Array[int]:
+	var out: Array[int] = []
+	for t in ResourceManager.CORE_TYPES:
+		out.append(int(t))
+	for cat in ResourceManager.CATEGORIES:
+		for t in cat["types"]:
+			if not (int(t) in out):
+				out.append(int(t))
+	return out

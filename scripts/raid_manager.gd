@@ -1,7 +1,10 @@
 class_name RaidManager
 extends Node
 
-## 时代Ⅳ 强盗袭击调度：节奏、警告横幅、生成/撤退、抢劫登记与战后士气结算。
+## 袭击调度：节奏、警告横幅、生成/撤退、抢劫登记与战后士气结算。
+## 两种来袭共用这一整套机制，只在生成时按时代分叉：
+##   时代Ⅱ~Ⅲ = 野狼（血薄、不拆墙、只叼食物、怕篝火）——把时代Ⅰ~Ⅲ 的"零风险挂机"填掉；
+##   时代Ⅳ 起 = 强盗（原有行为）。
 ## 注意：为避免 class_name 循环依赖，main 和其他脚本引用本对象时一律不加类型标注。
 
 signal raid_started(count: int)
@@ -11,8 +14,14 @@ const MOOD_VICTORY := 5            # 无人被抢：全体 +5
 const MOOD_PER_PILLAGE := -10      # 每次成功抢劫 -10
 const MOOD_CAP := -20              # 惩罚封顶
 const MOOD_DAYS := 2               # 士气影响持续天数
-const RAID_MIN_GAP := 6            # 袭击间隔 6~9 天
+const RAID_MIN_GAP := 6            # 强盗间隔 6~9 天
 const RAID_MAX_GAP := 9
+const WOLF_MIN_ERA := 2            # 野狼从时代Ⅱ 开始（时代Ⅰ 留给纯建设）
+const BANDIT_MIN_ERA := 4          # 时代Ⅳ 起换成强盗
+const WOLF_MIN_GAP := 5            # 狼来得更勤但更轻
+const WOLF_MAX_GAP := 8
+const WOLF_PER_POPULATION := 50    # 每 50 人口 +1 只狼
+const WOLF_MAX_COUNT := 4
 const WARN_TIME := 0.7             # 前一天傍晚（time_of_day≥0.7）警告
 const PER_POPULATION := 60         # 每 60 人口 +1 名强盗
 const RAID_MAX_DAYS := 4           # 单次袭击最长持续天数（保险丝，防 raid_active 永真）
@@ -32,7 +41,8 @@ var raid_pending := false      # 已到袭击日，等天亮再现身（避免�
 var raid_started_day := -1     # 本次袭击开始的天数（超时保险丝用）
 var raid_warned := false       # 已挂出警告横幅，明日清晨来袭
 var banner_text := ""
-var next_raid_day := -1        # -1 = 未排期（时代<4 或冬季）
+var next_raid_day := -1        # -1 = 未排期（时代<2 或冬季）
+var raid_kind: StringName = &"bandit"  # 本次来袭的种类（生成时按时代定；不入档——存档即撤退）
 var pillage_count := 0         # 本次袭击成功抢劫次数
 
 var raid_mood_bonus := 0       # 供 main._update_happiness 读取
@@ -59,8 +69,17 @@ func has_market() -> bool:
 
 
 ## 每帧调用：到点挂警告横幅（时代≥4、已排期、非冬季、明天是袭击日、傍晚之后）。
+## 本时代该来什么：Ⅱ~Ⅲ 野狼，Ⅳ 起强盗
+func kind_for_era(era: int) -> StringName:
+	return &"bandit" if era >= BANDIT_MIN_ERA else &"wolf"
+
+func _gap_for_era(era: int) -> int:
+	if era >= BANDIT_MIN_ERA:
+		return rng.randi_range(RAID_MIN_GAP, RAID_MAX_GAP)
+	return rng.randi_range(WOLF_MIN_GAP, WOLF_MAX_GAP)
+
 func tick(era: int) -> void:
-	if raid_active or era < 4:
+	if raid_active or era < WOLF_MIN_ERA:
 		return
 	if time.is_winter():
 		return
@@ -68,13 +87,16 @@ func tick(era: int) -> void:
 	if raid_pending:
 		if not time.is_night():
 			raid_pending = false
-			_spawn_raid()
+			_spawn_raid(era)
 		return
 	if raid_warned or next_raid_day < 0:
 		return
 	if time.day == next_raid_day - 1 and time.time_of_day >= WARN_TIME:
 		raid_warned = true
-		banner_text = "有探子来报：一伙强盗在附近出没，明日清晨可能来袭！"
+		if kind_for_era(era) == &"wolf":
+			banner_text = "山里传来狼嚎，明日恐有狼群下山——把食物产线用篝火照起来！"
+		else:
+			banner_text = "有探子来报：一伙强盗在附近出没，明日清晨可能来袭！"
 
 
 ## 每个新的一天调用（接 main._on_new_day）：士气衰减 + 排期 + 清晨生成。
@@ -95,8 +117,8 @@ func on_new_day(era: int) -> void:
 		_settle_and_end()
 	if raid_active:
 		return
-	if era < 4:
-		# 时代跌破Ⅳ：取消待出动与预警，避免恢复后无预警突袭
+	if era < WOLF_MIN_ERA:
+		# 时代跌回Ⅰ：取消待出动与预警，避免恢复后无预警突袭
 		raid_pending = false
 		raid_warned = false
 		banner_text = ""
@@ -112,11 +134,11 @@ func on_new_day(era: int) -> void:
 		return  # 等黎明 tick 现身
 	var day: int = time.day
 	if next_raid_day < 0:
-		next_raid_day = day + rng.randi_range(RAID_MIN_GAP, RAID_MAX_GAP)
+		next_raid_day = day + _gap_for_era(era)
 		return
 	if day >= next_raid_day:
 		raid_pending = true
-		next_raid_day = day + rng.randi_range(RAID_MIN_GAP, RAID_MAX_GAP)
+		next_raid_day = day + _gap_for_era(era)
 		raid_warned = false
 
 
@@ -173,18 +195,28 @@ func retreat() -> void:
 	banner_text = ""
 
 
-func _spawn_raid() -> void:
-	var count: int = 2 + villagers_root.get_child_count() / PER_POPULATION
+func _spawn_raid(era: int) -> void:
+	raid_kind = kind_for_era(era)
+	var pop: int = villagers_root.get_child_count()
+	var count: int
+	if raid_kind == &"wolf":
+		count = mini(1 + pop / WOLF_PER_POPULATION, WOLF_MAX_COUNT)
+	else:
+		count = 2 + pop / PER_POPULATION
+	count = maxi(count, 1)
 	for i in count:
 		var e := Enemy.new()
 		game.add_child(e)
-		# 注意参数顺序：Enemy.setup(grid, resources, raid, start_cell)
-		e.setup(grid, resources, self, grid.random_edge_cell(true))
+		# 注意参数顺序：Enemy.setup(grid, resources, raid, start_cell, kind)
+		e.setup(grid, resources, self, grid.random_edge_cell(true), raid_kind)
 		enemies.append(e)
 	raid_active = true
 	raid_started_day = time.day
 	pillage_count = 0
-	banner_text = "强盗来袭！保护你的村民和物资！"
+	if raid_kind == &"wolf":
+		banner_text = "狼群下山了！它们盯上了村里的食物"
+	else:
+		banner_text = "强盗来袭！保护你的村民和物资！"
 	raid_started.emit(count)
 
 
@@ -199,11 +231,14 @@ func _settle_and_end() -> void:
 	raid_active = false
 	banner_text = ""
 	if game != null and game.hud != null:
+		var who := "狼群" if raid_kind == &"wolf" else "强盗"
 		if pillage_count == 0:
-			game.hud.show_toast("击退了强盗！村民士气大振（幸福 +%d，持续 %d 天）" % [MOOD_VICTORY, MOOD_DAYS], 6.0)
+			game.hud.show_toast("%s 无功而返！村民士气大振（幸福 +%d，持续 %d 天）"
+				% [who, MOOD_VICTORY, MOOD_DAYS], 6.0)
 		else:
 			var mood := maxi(MOOD_PER_PILLAGE * pillage_count, MOOD_CAP)
-			game.hud.show_toast("强盗抢走了 %d 批物资（幸福 %d，持续 %d 天）" % [pillage_count, mood, MOOD_DAYS], 6.0)
+			game.hud.show_toast("%s 叼走/抢走了 %d 批物资（幸福 %d，持续 %d 天）"
+				% [who, pillage_count, mood, MOOD_DAYS], 6.0)
 	if pillage_count == 0:
 		raid_mood_bonus = MOOD_VICTORY
 	else:

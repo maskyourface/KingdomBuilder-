@@ -1,10 +1,12 @@
 extends Node
 class_name SaveManager
 
-## 存档 v4 读写：原子写（.tmp→校验→rename）、自动存档 .bak 轮转、多槽列表与读档恢复。
+## 存档 v5 读写：原子写（.tmp→校验→rename）、自动存档 .bak 轮转、多槽列表与读档恢复。
+## v4 → v5：世界设置（尺寸/地形/丰度/种子）入档，roads 由 bool 升为 RoadType 整数。
+## 地图尺寸不再要求与当前配置一致——读档会按存档里的世界设置把地图重建成存档的尺寸。
 ## game 为主控 main.gd，无类型注入（与 raid_manager 同模式，避免 class_name 循环依赖）。
 
-const SAVE_VERSION := 4
+const SAVE_VERSION := 5
 const AUTOSAVE := "autosave.json"
 
 var game = null  # 主控 main.gd（main 无 class_name，保持无类型避免循环依赖）
@@ -33,6 +35,8 @@ func save_game(slot_name := "") -> void:
 		building_list.append({
 			"uid": b.uid,
 			"id": String(b.data["id"]),
+			"level": b.level,
+			"priority": b.priority,
 			"origin": [b.origin.x, b.origin.y],
 			"timer": b.timer,
 			"hp": b.hp,
@@ -51,6 +55,7 @@ func save_game(slot_name := "") -> void:
 			"workplace": v.workplace.uid if is_instance_valid(v.workplace) else -1,
 			"home": v.home.uid if is_instance_valid(v.home) else -1,
 			"role": int(v.role),
+			"trait": String(v.trait_id),
 			"hp": v.hp,
 			"has_clothes": v.has_clothes,
 			"clothes_days": v.clothes_days,
@@ -64,10 +69,11 @@ func save_game(slot_name := "") -> void:
 		"saved_at": int(Time.get_unix_time_from_system()),
 		"width": game.grid.width,
 		"height": game.grid.height,
+		"world": game.grid.config.to_dict(),
 		"day": game.time_mgr.day,
 		"time_of_day": game.time_mgr.time_of_day,
 		"terrain": Array(game.grid.terrain),
-		"roads": Array(game.grid.roads),
+		"roads": Array(game.grid.road_type),
 		"stock": stock,
 		"happiness": game.resources.happiness,
 		"buildings": building_list,
@@ -155,18 +161,21 @@ func load_game(path: String) -> bool:
 	if int(data.get("version", 0)) != SAVE_VERSION:
 		print("存档版本不兼容（当前游戏 v%d，存档 v%d）" % [SAVE_VERSION, int(data.get("version", 0))])
 		return false
-	if int(data.get("width", 0)) != game.grid.width or int(data.get("height", 0)) != game.grid.height:
-		print("存档地图尺寸与当前配置不符")
+	# 世界设置入档后，存档自带尺寸：读档按存档重建地图，而不是要求当前配置刚好对得上
+	var saved_w := int(data.get("width", 0))
+	var saved_h := int(data.get("height", 0))
+	if saved_w <= 0 or saved_h <= 0:
+		print("存档地图尺寸异常")
 		return false
 	var terrain_data: Array = data.get("terrain", [])
 	var roads_data: Array = data.get("roads", [])
-	if terrain_data.size() != game.grid.width * game.grid.height:
+	if terrain_data.size() != saved_w * saved_h:
 		print("存档地形数据长度异常")
 		return false
 	if roads_data.size() != terrain_data.size():
 		roads_data = []
 		roads_data.resize(terrain_data.size())
-		roads_data.fill(false)
+		roads_data.fill(0)
 
 	# 结构预校验：在销毁现有世界之前剔除坏条目，避免半途报错留下残局
 	var building_entries: Array = data.get("buildings", [])
@@ -185,13 +194,19 @@ func load_game(path: String) -> bool:
 		b.free()
 	game.placer.cancel()
 
-	# 地图数据
+	# 地图数据（先按存档恢复世界设置与尺寸，再灌地形/路面；顺序反了 _idx 会算错）
+	game.grid.config = WorldConfig.from_dict(data.get("world", {}))
+	game.grid.width = saved_w
+	game.grid.height = saved_h
 	game.grid.terrain.clear()
-	game.grid.roads.clear()
+	game.grid.road_type.clear()
+	game.grid.occupancy.clear()
 	for t in terrain_data:
 		game.grid.terrain.append(int(t))
 	for r in roads_data:
-		game.grid.roads.append(bool(r))
+		game.grid.road_type.append(int(r))
+	game.grid.occupancy.resize(terrain_data.size())
+	game.grid.rebuild_jitter()
 	game.grid.reset_occupancy()
 	game.grid.queue_redraw()
 
@@ -240,8 +255,11 @@ func load_game(path: String) -> bool:
 		b.setup(catalog, origin, game.resources, game.time_mgr, game.raid, game.grid)
 		b.uid = int(bd.get("uid", b.uid))
 		Building.bump_uid_past(b.uid)
+		# 等级先恢复，hp 才有正确的生效上限可钳制（升级会抬高城墙耐久上限）
+		b.level = clampi(int(bd.get("level", 1)), 1, b.max_level())
+		b.priority = clampi(int(bd.get("priority", 1)), 0, 2)
 		b.timer = float(bd.get("timer", 0.0))
-		b.hp = int(bd.get("hp", int(catalog.get("hp", -1))))
+		b.hp = int(bd.get("hp", b.eff_max_hp()))
 		b.worked_today = bool(bd.get("worked_today", false))
 		game.buildings_root.add_child(b)
 		game.grid.occupy_area(origin, catalog.get("size", Vector2i.ONE), b)
@@ -271,7 +289,10 @@ func load_game(path: String) -> bool:
 		v.happiness = float(vd.get("happiness", 50.0))
 		v.last_ate_bread = bool(vd.get("ate_bread", false))
 		v.role = Villager.Role.GUARD if int(vd.get("role", 0)) == Villager.Role.GUARD else Villager.Role.COMMONER
-		v.hp = int(vd.get("hp", Villager.GUARD_MAX_HP))
+		# 特长：坏档/旧档（v4 无该键）一律回落到"寻常"，绝不因为一个字段崩掉读档
+		var tid := StringName(String(vd.get("trait", "plain")))
+		v.trait_id = tid if Villager.TRAITS.has(tid) else &"plain"
+		v.hp = int(vd.get("hp", v.guard_max_hp()))
 		v.has_clothes = bool(vd.get("has_clothes", false))
 		v.clothes_days = int(vd.get("clothes_days", 0))
 		game.villagers_root.add_child(v)
@@ -279,7 +300,7 @@ func load_game(path: String) -> bool:
 		var wuid := int(vd.get("workplace", -1))
 		if buildings_by_uid.has(wuid):
 			var wb = buildings_by_uid[wuid]
-			var max_workers: int = wb.data.get("workers", 0)
+			var max_workers: int = wb.eff_workers()
 			if wb.workers.size() < max_workers:
 				wb.workers.append(v)
 				v.workplace = wb
@@ -288,13 +309,14 @@ func load_game(path: String) -> bool:
 		var huid := int(vd.get("home", -1))
 		if buildings_by_uid.has(huid):
 			var hb = buildings_by_uid[huid]
-			var capacity: int = hb.data.get("housing", 0)
+			var capacity: int = hb.eff_housing()
 			if hb.residents.size() < capacity:
 				hb.residents.append(v)
 				v.home = hb
 				v.home_cell = game.grid.find_adjacent_walkable(hb.origin, hb.data.get("size", Vector2i.ONE))
 
 	game.reassign_homes()
+	game.resort_buildings()  # 按读回来的优先级重排结算顺序（存档顺序理应已排好，这里兜底）
 	# 关掉可能开着的详情面板；村民列表按钮强制重建
 	game.hud.show_building(null)
 	game.hud.invalidate_villager_list()

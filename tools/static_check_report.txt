@@ -1,52 +1,58 @@
 ==============================================================================
 KingdomBuilder 启发式静态检查报告
-生成时间：2026-09-06 03:02:22
-运行时：Python 3.13.5
+生成时间：2026-09-06 02:47:14
+运行时：Python 3.10.12
 工具版本：迭代2（新增 [E] 信号契约 / [F] 语法粗检；[A] 映射补全 game→Main；[D] 新字段复跑）
 扫描目录：scripts, tests
-脚本清单：building.gd(Building), building_catalog.gd(BuildingCatalog), building_placer.gd(BuildingPlacer), enemy.gd(Enemy), event_manager.gd(EventManager), grid_manager.gd(GridManager), hud.gd(HUD), main.gd(Main(main.gd)), main_menu.gd(MainMenu), raid_manager.gd(RaidManager), resource_manager.gd(ResourceManager), save_manager.gd(SaveManager), time_manager.gd(TimeManager), ui_font.gd(UiFont), villager.gd(Villager), logic_test.gd(logic_test), menu_test.gd(menu_test), play_test.gd(play_test), smoke_test.gd(smoke_test)
+脚本清单：building.gd(Building), building_catalog.gd(BuildingCatalog), building_placer.gd(BuildingPlacer), enemy.gd(Enemy), event_manager.gd(EventManager), grid_manager.gd(GridManager), hud.gd(HUD), main.gd(Main(main.gd)), main_menu.gd(MainMenu), raid_manager.gd(RaidManager), resource_manager.gd(ResourceManager), save_manager.gd(SaveManager), time_manager.gd(TimeManager), ui_font.gd(UiFont), villager.gd(Villager), world_config.gd(WorldConfig), logic_test.gd(logic_test), menu_test.gd(menu_test), play_test.gd(play_test), smoke_test.gd(smoke_test)
 ==============================================================================
 
 [A] 跨脚本调用契约 + [B] 幽灵属性（obj.method / obj.attr 扫描）
 ------------------------------------------------------------------------------
-  [WARN] building_placer.gd:48  GridManager.has_road() 形参 1「cell: Vector2i」收到推断类型 Vector2i.ZERO —— 类型明显不符，疑似实参顺序/取值错误（定义见 grid_manager.gd:228）
-  [WARN] building_placer.gd:49  GridManager.remove_road() 形参 1「cell: Vector2i」收到推断类型 Vector2i.ZERO —— 类型明显不符，疑似实参顺序/取值错误（定义见 grid_manager.gd:244）
-  [WARN] building_placer.gd:85  GridManager.has_road() 形参 1「cell: Vector2i」收到推断类型 Vector2i.ZERO —— 类型明显不符，疑似实参顺序/取值错误（定义见 grid_manager.gd:228）
-  [WARN] building_placer.gd:86  GridManager.remove_road() 形参 1「cell: Vector2i」收到推断类型 Vector2i.ZERO —— 类型明显不符，疑似实参顺序/取值错误（定义见 grid_manager.gd:244）
-  [WARN] building_placer.gd:88  GridManager.building_at() 形参 1「cell: Vector2i」收到推断类型 Vector2i.ZERO —— 类型明显不符，疑似实参顺序/取值错误（定义见 grid_manager.gd:97）
-  [WARN] building_placer.gd:89  GridManager.building_at() 形参 1「cell: Vector2i」收到推断类型 Vector2i.ZERO —— 类型明显不符，疑似实参顺序/取值错误（定义见 grid_manager.gd:97）
-  [WARN] hud.gd:961  ResourceManager.get_amount() 形参 1「t: int」收到推断类型 Dictionary —— 类型明显不符，疑似实参顺序/取值错误（定义见 resource_manager.gd:33）
-  小计：ERROR=0, WARN=7
+  [WARN] building_placer.gd:48  GridManager.has_road() 形参 1「cell: Vector2i」收到推断类型 Vector2i.ZERO —— 类型明显不符，疑似实参顺序/取值错误（定义见 grid_manager.gd:485）
+  [WARN] building_placer.gd:49  GridManager.remove_road() 形参 1「cell: Vector2i」收到推断类型 Vector2i.ZERO —— 类型明显不符，疑似实参顺序/取值错误（定义见 grid_manager.gd:519）
+  [WARN] building_placer.gd:85  GridManager.has_road() 形参 1「cell: Vector2i」收到推断类型 Vector2i.ZERO —— 类型明显不符，疑似实参顺序/取值错误（定义见 grid_manager.gd:485）
+  [WARN] building_placer.gd:86  GridManager.remove_road() 形参 1「cell: Vector2i」收到推断类型 Vector2i.ZERO —— 类型明显不符，疑似实参顺序/取值错误（定义见 grid_manager.gd:519）
+  [WARN] building_placer.gd:88  GridManager.building_at() 形参 1「cell: Vector2i」收到推断类型 Vector2i.ZERO —— 类型明显不符，疑似实参顺序/取值错误（定义见 grid_manager.gd:331）
+  [WARN] building_placer.gd:89  GridManager.building_at() 形参 1「cell: Vector2i」收到推断类型 Vector2i.ZERO —— 类型明显不符，疑似实参顺序/取值错误（定义见 grid_manager.gd:331）
+  [WARN] hud.gd:692  ResourceManager.get_amount() 形参 1「t: int」收到推断类型 Dictionary —— 类型明显不符，疑似实参顺序/取值错误（定义见 resource_manager.gd:91）
+  [WARN] hud.gd:701  ResourceManager.get_amount() 形参 1「t: int」收到推断类型 Dictionary —— 类型明显不符，疑似实参顺序/取值错误（定义见 resource_manager.gd:91）
+  [WARN] hud.gd:1304  ResourceManager.is_relevant() 形参 1「t: int」收到推断类型 Dictionary —— 类型明显不符，疑似实参顺序/取值错误（定义见 resource_manager.gd:140）
+  [WARN] hud.gd:1306  ResourceManager.month_net() 形参 1「t: int」收到推断类型 Dictionary —— 类型明显不符，疑似实参顺序/取值错误（定义见 resource_manager.gd:136）
+  [WARN] hud.gd:1312  ResourceManager.get_amount() 形参 1「t: int」收到推断类型 Dictionary —— 类型明显不符，疑似实参顺序/取值错误（定义见 resource_manager.gd:91）
+  [WARN] logic_test.gd:1180  GridManager._has_within() 形参 2「type: int」收到推断类型 Dictionary —— 类型明显不符，疑似实参顺序/取值错误（定义见 grid_manager.gd:291）
+  [WARN] logic_test.gd:1231  GridManager.road_kind_of() 形参 1「data: Dictionary」收到推断类型 Vector2i —— 类型明显不符，疑似实参顺序/取值错误（定义见 grid_manager.gd:477）
+  小计：ERROR=0, WARN=13
   对象映射覆盖（迭代2）：PROJECT_TYPE_MAP 新增 game→Main（RaidManager 持有 main.gd），
   迭代1新增调用面全部纳入 [A] 扫描；逐点核验：
-    RaidManager.game → Main（main.gd）：代码中出现 99 处
+    RaidManager.game → Main（main.gd）：代码中出现 102 处
     game.hud → HUD：代码中出现 7 处，类 HUD 存在
-    HUD.show_toast：代码中出现 17 处，成员 HUD.show_toast 存在
+    HUD.show_toast：代码中出现 26 处，成员 HUD.show_toast 存在
     HUD.show_coronation：代码中出现 1 处，成员 HUD.show_coronation 存在
-    HUD.invalidate_villager_list：代码中出现 3 处，成员 HUD.invalidate_villager_list 存在
+    HUD.invalidate_villager_list：代码中出现 2 处，成员 HUD.invalidate_villager_list 存在
     RaidManager.raid_pending：代码中出现 10 处，成员 RaidManager.raid_pending 存在
     RaidManager.raid_started_day：代码中出现 8 处，成员 RaidManager.raid_started_day 存在
     RaidManager.raid_mood_bonus / raid_mood_days_left：代码中出现 17 处，类 RaidManager 存在
-    RaidManager.banner_text（横幅轮询）：代码中出现 12 处，成员 RaidManager.banner_text 存在
-    RaidManager.retreat / on_new_day / tick / setup：代码中出现 6 处，类 RaidManager 存在
+    RaidManager.banner_text（横幅轮询）：代码中出现 15 处，成员 RaidManager.banner_text 存在
+    RaidManager.retreat / on_new_day / tick / setup：代码中出现 8 处，类 RaidManager 存在
 
 [C] 字典键一致性（building_catalog.gd vs 全代码目录字典查询）
 ------------------------------------------------------------------------------
-  catalog 定义键（39 个）：aura_kind, aura_radius, auto_buys, auto_sells, color, converts_to_farm, cost, depletes, depletes_every, desc, drag_place, group, housing, hp, id, inputs, interval, is_gate, is_road, is_wall, min_era, name, needs_berry, needs_forest, needs_mountain, needs_water, no_winter, outputs, plants, produces, sell_cap, serves, shoots_damage, shoots_interval, shoots_range, size, trains_guards, work_radius, workers
-  代码查询键（39 个）：aura_kind, aura_radius, auto_buys, auto_sells, color, converts_to_farm, cost, depletes, depletes_every, desc, drag_place, group, housing, hp, id, inputs, interval, is_gate, is_road, is_wall, min_era, name, needs_berry, needs_forest, needs_mountain, needs_water, no_winter, outputs, plants, produces, sell_cap, serves, shoots_damage, shoots_interval, shoots_range, size, trains_guards, work_radius, workers
+  catalog 定义键（61 个）：aura, aura_kind, aura_radius, auto_buys, auto_sells, buy_budget, castle_bonus, color, converts_to_farm, cost, crown, damage, depletes, depletes_every, desc, drag_place, group, housing, hp, id, inputs, interval, is_gate, is_road, is_wall, keeps, keeps_food, max_level, min_era, name, needs_berry, needs_clay, needs_forest, needs_iron, needs_mountain, needs_water, no_winter, outputs, plants, produces, radius, range, road_kind, scare, scares_wolves, sector, sell_cap, serves, shoots_damage, shoots_interval, shoots_range, size, speed, teach_radius, teach_slots, titles, trains_guards, upgrade, warms, work_radius, workers
+  代码查询键（49 个）：aura_kind, aura_radius, auto_buys, auto_sells, castle_bonus, color, converts_to_farm, cost, depletes, depletes_every, desc, drag_place, group, housing, hp, id, inputs, interval, is_gate, is_road, is_wall, keeps_food, min_era, name, needs_berry, needs_clay, needs_forest, needs_iron, needs_mountain, needs_water, no_winter, outputs, plants, produces, scares_wolves, sector, sell_cap, serves, shoots_damage, shoots_interval, shoots_range, size, teach_radius, teach_slots, trains_guards, upgrade, warms, work_radius, workers
   未发现「代码查询了但 catalog 未定义」的键
-  INFO catalog 所有键在代码中均有查询
+  INFO catalog 定义但未见查询的键：aura, buy_budget, crown, damage, keeps, max_level, radius, range, road_kind, scare, speed, titles
 
 [D] 存档对称性（save_manager.gd save_game 写入 vs load_game/get_save_list 读取；缺失时回退 main.gd）
 ------------------------------------------------------------------------------
-  顶层写入键（21）：buildings, crowned, day, happiness, height, next_raid_day, raid_mood_bonus, raid_mood_days_left, raid_pending, raid_started_day, roads, save_name, saved_at, stock, terrain, time_of_day, version, villager_count, villager_seq, villagers, width
-  顶层读取键（21）：buildings, crowned, day, happiness, height, next_raid_day, raid_mood_bonus, raid_mood_days_left, raid_pending, raid_started_day, roads, save_name, saved_at, stock, terrain, time_of_day, version, villager_count, villager_seq, villagers, width
-  buildings 条目 写入(6)/读取(6)：hp, id, origin, timer, uid, worked_today | hp, id, origin, timer, uid, worked_today
-  villagers 条目 写入(12)/读取(12)：ate_bread, cell, clothes_days, happiness, has_clothes, home, hp, hunger, name, role, uid, workplace | ate_bread, cell, clothes_days, happiness, has_clothes, home, hp, hunger, name, role, uid, workplace
+  顶层写入键（22）：buildings, crowned, day, happiness, height, next_raid_day, raid_mood_bonus, raid_mood_days_left, raid_pending, raid_started_day, roads, save_name, saved_at, stock, terrain, time_of_day, version, villager_count, villager_seq, villagers, width, world
+  顶层读取键（22）：buildings, crowned, day, happiness, height, next_raid_day, raid_mood_bonus, raid_mood_days_left, raid_pending, raid_started_day, roads, save_name, saved_at, stock, terrain, time_of_day, version, villager_count, villager_seq, villagers, width, world
+  buildings 条目 写入(8)/读取(8)：hp, id, level, origin, priority, timer, uid, worked_today | hp, id, level, origin, priority, timer, uid, worked_today
+  villagers 条目 写入(13)/读取(13)：ate_bread, cell, clothes_days, happiness, has_clothes, home, hp, hunger, name, role, trait, uid, workplace | ate_bread, cell, clothes_days, happiness, has_clothes, home, hp, hunger, name, role, trait, uid, workplace
   INFO 检查目标：save_manager.gd（迭代6 拆分；save_manager.gd 缺失时回退 main.gd）
-  INFO 顶层：21 个键两侧一致
-  INFO buildings 条目：6 个键两侧一致
-  INFO villagers 条目：12 个键两侧一致
+  INFO 顶层：22 个键两侧一致
+  INFO buildings 条目：8 个键两侧一致
+  INFO villagers 条目：13 个键两侧一致
   INFO stock：写入 str(Type) / 读取 stock_data.get(str(t), 0)，动态键同构
   迭代2复跑——迭代1新增字段两侧一致性断言：
     happiness          写入=True 读取=True 一致
@@ -61,66 +67,73 @@ KingdomBuilder 启发式静态检查报告
       BuildingPlacer.inspect_requested（1 参，building_placer.gd:12）：emit 1 处，connect 1 处
       BuildingPlacer.place_failed（1 参，building_placer.gd:14）：emit 4 处，connect 1 处
       BuildingPlacer.placed（1 参，building_placer.gd:9）：emit 2 处，connect 1 处
-      RaidManager.raid_ended（0 参，raid_manager.gd:8）：emit 1 处，connect 0 处 —— 无任何 connect（若 UI 以轮询方式消费则为设计选择，非缺陷）
-      RaidManager.raid_started（1 参，raid_manager.gd:7）：emit 1 处，connect 0 处 —— 无任何 connect（若 UI 以轮询方式消费则为设计选择，非缺陷）
-      ResourceManager.changed（0 参，resource_manager.gd:15）：emit 5 处，connect 1 处
+      RaidManager.raid_ended（0 参，raid_manager.gd:11）：emit 1 处，connect 0 处 —— 无任何 connect（若 UI 以轮询方式消费则为设计选择，非缺陷）
+      RaidManager.raid_started（1 参，raid_manager.gd:10）：emit 1 处，connect 0 处 —— 无任何 connect（若 UI 以轮询方式消费则为设计选择，非缺陷）
+      ResourceManager.changed（0 参，resource_manager.gd:60）：emit 5 处，connect 1 处
       TimeManager.new_day（0 参，time_manager.gd:22）：emit 1 处，connect 1 处
-      Villager.died（2 参，villager.gd:17）：emit 1 处，connect 2 处
+      Villager.died（2 参，villager.gd:43）：emit 1 处，connect 2 处
   emit 校验（19 处）：
     [OK] BuildingPlacer.inspect_requested.emit(mouse_cell) @ building_placer.gd:82 —— 1 实参 vs 声明 1 参
     [OK] BuildingPlacer.place_failed.emit("" % what) @ building_placer.gd:107 —— 1 实参 vs 声明 1 参
-    [OK] BuildingPlacer.place_failed.emit("" % [what, pair[1]]) @ building_placer.gd:113 —— 1 实参 vs 声明 1 参
-    [OK] BuildingPlacer.place_failed.emit("") @ building_placer.gd:116 —— 1 实参 vs 声明 1 参
-    [OK] BuildingPlacer.place_failed.emit("" % what) @ building_placer.gd:118 —— 1 实参 vs 声明 1 参
-    [OK] BuildingPlacer.placed.emit(null) @ building_placer.gd:137 —— 1 实参 vs 声明 1 参
-    [OK] BuildingPlacer.placed.emit(b) @ building_placer.gd:153 —— 1 实参 vs 声明 1 参
-    [OK] BuildingPlacer.demolished.emit() @ building_placer.gd:194 —— 0 实参 vs 声明 0 参
-    [OK] RaidManager.raid_started.emit(count) @ raid_manager.gd:188 —— 1 实参 vs 声明 1 参
-    [OK] RaidManager.raid_ended.emit() @ raid_manager.gd:213 —— 0 实参 vs 声明 0 参
-    [OK] ResourceManager.changed.emit() @ resource_manager.gd:31 —— 0 实参 vs 声明 0 参
-    [OK] ResourceManager.changed.emit() @ resource_manager.gd:38 —— 0 实参 vs 声明 0 参
-    [OK] ResourceManager.changed.emit() @ resource_manager.gd:53 —— 0 实参 vs 声明 0 参
-    [OK] ResourceManager.changed.emit() @ resource_manager.gd:61 —— 0 实参 vs 声明 0 参
-    [OK] ResourceManager.changed.emit() @ save_manager.gd:219 —— 0 实参 vs 声明 0 参
+    [OK] BuildingPlacer.place_failed.emit("" % [what, pair[1]]) @ building_placer.gd:114 —— 1 实参 vs 声明 1 参
+    [OK] BuildingPlacer.place_failed.emit(_road_hint()) @ building_placer.gd:117 —— 1 实参 vs 声明 1 参
+    [OK] BuildingPlacer.place_failed.emit("" % what) @ building_placer.gd:119 —— 1 实参 vs 声明 1 参
+    [OK] BuildingPlacer.placed.emit(null) @ building_placer.gd:155 —— 1 实参 vs 声明 1 参
+    [OK] BuildingPlacer.placed.emit(b) @ building_placer.gd:171 —— 1 实参 vs 声明 1 参
+    [OK] BuildingPlacer.demolished.emit() @ building_placer.gd:212 —— 0 实参 vs 声明 0 参
+    [OK] RaidManager.raid_started.emit(count) @ raid_manager.gd:220 —— 1 实参 vs 声明 1 参
+    [OK] RaidManager.raid_ended.emit() @ raid_manager.gd:248 —— 0 实参 vs 声明 0 参
+    [OK] ResourceManager.changed.emit() @ resource_manager.gd:89 —— 0 实参 vs 声明 0 参
+    [OK] ResourceManager.changed.emit() @ resource_manager.gd:98 —— 0 实参 vs 声明 0 参
+    [OK] ResourceManager.changed.emit() @ resource_manager.gd:162 —— 0 实参 vs 声明 0 参
+    [OK] ResourceManager.changed.emit() @ resource_manager.gd:171 —— 0 实参 vs 声明 0 参
+    [OK] ResourceManager.changed.emit() @ save_manager.gd:234 —— 0 实参 vs 声明 0 参
     [OK] TimeManager.new_day.emit() @ time_manager.gd:30 —— 0 实参 vs 声明 0 参
-    [OK] Villager.died.emit(self, reason) @ villager.gd:147 —— 2 实参 vs 声明 2 参
-    [OK] pressed.emit()（内置信号）@ menu_test.gd:15
+    [OK] Villager.died.emit(self, reason) @ villager.gd:223 —— 2 实参 vs 声明 2 参
     [OK] pressed.emit()（内置信号）@ menu_test.gd:28
-  connect 校验（32 处）：
-    [OK] btn.pressed（内置） ← _choose.bind(opt) @ event_manager.gd:237 —— 信号 0 参，目标「_choose.bind(opt)」
-    [OK] ResourceManager.changed ← _mark_resources_dirty @ hud.gd:107 —— 信号 0 参，目标「_mark_resources_dirty」
-    [OK] _pop_btn.pressed（内置） ← main.focus_next_idle @ hud.gd:141 —— 信号 0 参，目标「main.focus_next_idle」
-    [OK] build_toggle.pressed（内置） ← _toggle_build_menu @ hud.gd:152 —— 信号 0 参，目标「_toggle_build_menu」
-    [OK] villager_toggle.pressed（内置） ← _toggle_villager_panel @ hud.gd:156 —— 信号 0 参，目标「_toggle_villager_panel」
-    [OK] log_btn.pressed（内置） ← _toggle_log_panel @ hud.gd:160 —— 信号 0 参，目标「_toggle_log_panel」
-    [OK] fill_btn.pressed（内置） ← main.assign_all_workers @ hud.gd:164 —— 信号 0 参，目标「main.assign_all_workers」
-    [OK] save_btn.pressed（内置） ← main.save_game @ hud.gd:168 —— 信号 0 参，目标「main.save_game」
-    [OK] load_btn.pressed（内置） ← main.open_load_menu @ hud.gd:172 —— 信号 0 参，目标「main.open_load_menu」
-    [OK] tab_btn.pressed（内置） ← _switch_tab.bind(g) @ hud.gd:234 —— 信号 0 参，目标「_switch_tab.bind(g)」
-    [OK] btn.pressed（内置） ← _on_build_button.bind(data) @ hud.gd:246 —— 信号 0 参，目标「_on_build_button.bind(data)」
-    [OK] _sort_btn.pressed（内置） ← _on_sort_pressed @ hud.gd:283 —— 信号 0 参，目标「_on_sort_pressed」
-    [OK] minus_btn.pressed（内置） ← _on_unassign_worker @ hud.gd:329 —— 信号 0 参，目标「_on_unassign_worker」
-    [OK] plus_btn.pressed（内置） ← _on_assign_worker @ hud.gd:335 —— 信号 0 参，目标「_on_assign_worker」
-    [OK] demolish_btn.pressed（内置） ← _on_demolish_current @ hud.gd:348 —— 信号 0 参，目标「_on_demolish_current」
-    [OK] close_btn.pressed（内置） ← main.clear_building_inspect @ hud.gd:352 —— 信号 0 参，目标「main.clear_building_inspect」
-    [OK] fire_btn.pressed（内置） ← _on_fire_villager @ hud.gd:388 —— 信号 0 参，目标「_on_fire_villager」
-    [OK] vd_close_btn.pressed（内置） ← func(): _vdetail_panel.visible = false @ hud.gd:392 —— 信号 0 参，目标「func(): _vdetail_panel.visible = false」
-    [OK] collapse_load.pressed（内置） ← func(): main.open_load_menu(false) @ hud.gd:463 —— 信号 0 参，目标「func(): main.open_load_menu(false)」
-    [OK] collapse_new.pressed（内置） ← main.new_game @ hud.gd:467 —— 信号 0 参，目标「main.new_game」
-    [OK] collapse_ignore.pressed（内置） ← hide_collapse_panel @ hud.gd:471 —— 信号 0 参，目标「hide_collapse_panel」
-    [OK] btn.pressed（内置） ← main.focus_villager.bind(v) @ hud.gd:667 —— 信号 0 参，目标「main.focus_villager.bind(v)」
-    [OK] BuildingPlacer.placed ← _on_placed @ main.gd:82 —— 信号 1 参，目标「_on_placed」
-    [OK] BuildingPlacer.demolished ← _on_construction_changed @ main.gd:83 —— 信号 0 参，目标「_on_construction_changed」
-    [OK] BuildingPlacer.inspect_requested ← _on_inspect @ main.gd:84 —— 信号 1 参，目标「_on_inspect」
-    [OK] BuildingPlacer.place_failed ← _on_place_failed @ main.gd:85 —— 信号 1 参，目标「_on_place_failed」
-    [OK] TimeManager.new_day ← _on_new_day @ main.gd:105 —— 信号 0 参，目标「_on_new_day」
-    [OK] Villager.died ← _on_villager_died @ main.gd:138 —— 信号 2 参，目标「_on_villager_died」
-    [OK] b.pressed（内置） ← action @ main_menu.gd:117 —— 信号 0 参，目标「action」
-    [OK] load_btn.pressed（内置） ← main.load_and_play.bind(s[""]) @ main_menu.gd:194 —— 信号 0 参，目标「main.load_and_play.bind(s[""])」
-    [OK] del_btn.pressed（内置） ← _on_delete_save.bind(s[""]) @ main_menu.gd:199 —— 信号 0 参，目标「_on_delete_save.bind(s[""])」
-    [OK] Villager.died ← game._on_villager_died @ save_manager.gd:269 —— 信号 2 参，目标「game._on_villager_died」
+    [OK] pressed.emit()（内置信号）@ menu_test.gd:65
+  connect 校验（39 处）：
+    [OK] btn.pressed（内置） ← _choose.bind(opt) @ event_manager.gd:336 —— 信号 0 参，目标「_choose.bind(opt)」
+    [OK] fallback.pressed（内置） ← _choose.bind({"": "", "": {}}) @ event_manager.gd:347 —— 信号 0 参，目标「_choose.bind({"": "", "": {}})」
+    [OK] ResourceManager.changed ← _mark_resources_dirty @ hud.gd:118 —— 信号 0 参，目标「_mark_resources_dirty」
+    [OK] _pop_btn.pressed（内置） ← main.focus_next_idle @ hud.gd:152 —— 信号 0 参，目标「main.focus_next_idle」
+    [OK] build_toggle.pressed（内置） ← _toggle_build_menu @ hud.gd:163 —— 信号 0 参，目标「_toggle_build_menu」
+    [OK] villager_toggle.pressed（内置） ← _toggle_villager_panel @ hud.gd:167 —— 信号 0 参，目标「_toggle_villager_panel」
+    [OK] overview_btn.pressed（内置） ← _toggle_overview_panel @ hud.gd:171 —— 信号 0 参，目标「_toggle_overview_panel」
+    [OK] log_btn.pressed（内置） ← _toggle_log_panel @ hud.gd:175 —— 信号 0 参，目标「_toggle_log_panel」
+    [OK] fill_btn.pressed（内置） ← main.assign_all_workers @ hud.gd:179 —— 信号 0 参，目标「main.assign_all_workers」
+    [OK] save_btn.pressed（内置） ← main.save_game @ hud.gd:183 —— 信号 0 参，目标「main.save_game」
+    [OK] load_btn.pressed（内置） ← main.open_load_menu @ hud.gd:187 —— 信号 0 参，目标「main.open_load_menu」
+    [OK] month_btn.pressed（内置） ← _toggle_month_panel @ hud.gd:196 —— 信号 0 参，目标「_toggle_month_panel」
+    [OK] tab_btn.pressed（内置） ← _switch_tab.bind(g) @ hud.gd:259 —— 信号 0 参，目标「_switch_tab.bind(g)」
+    [OK] btn.pressed（内置） ← _on_build_button.bind(data) @ hud.gd:271 —— 信号 0 参，目标「_on_build_button.bind(data)」
+    [OK] _sort_btn.pressed（内置） ← _on_sort_pressed @ hud.gd:308 —— 信号 0 参，目标「_on_sort_pressed」
+    [OK] minus_btn.pressed（内置） ← _on_unassign_worker @ hud.gd:354 —— 信号 0 参，目标「_on_unassign_worker」
+    [OK] plus_btn.pressed（内置） ← _on_assign_worker @ hud.gd:360 —— 信号 0 参，目标「_on_assign_worker」
+    [OK] _priority_btn.pressed（内置） ← _on_cycle_priority @ hud.gd:373 —— 信号 0 参，目标「_on_cycle_priority」
+    [OK] _upgrade_btn.pressed（内置） ← _on_upgrade_current @ hud.gd:378 —— 信号 0 参，目标「_on_upgrade_current」
+    [OK] demolish_btn.pressed（内置） ← _on_demolish_current @ hud.gd:383 —— 信号 0 参，目标「_on_demolish_current」
+    [OK] close_btn.pressed（内置） ← main.clear_building_inspect @ hud.gd:387 —— 信号 0 参，目标「main.clear_building_inspect」
+    [OK] fire_btn.pressed（内置） ← _on_fire_villager @ hud.gd:424 —— 信号 0 参，目标「_on_fire_villager」
+    [OK] vd_close_btn.pressed（内置） ← func(): _vdetail_panel.visible = false @ hud.gd:428 —— 信号 0 参，目标「func(): _vdetail_panel.visible = false」
+    [OK] collapse_load.pressed（内置） ← func(): main.open_load_menu(false) @ hud.gd:528 —— 信号 0 参，目标「func(): main.open_load_menu(false)」
+    [OK] collapse_new.pressed（内置） ← main.new_game @ hud.gd:532 —— 信号 0 参，目标「main.new_game」
+    [OK] collapse_ignore.pressed（内置） ← hide_collapse_panel @ hud.gd:536 —— 信号 0 参，目标「hide_collapse_panel」
+    [OK] btn.pressed（内置） ← main.focus_villager.bind(v) @ hud.gd:876 —— 信号 0 参，目标「main.focus_villager.bind(v)」
+    [OK] BuildingPlacer.placed ← _on_placed @ main.gd:132 —— 信号 1 参，目标「_on_placed」
+    [OK] BuildingPlacer.demolished ← _on_construction_changed @ main.gd:133 —— 信号 0 参，目标「_on_construction_changed」
+    [OK] BuildingPlacer.inspect_requested ← _on_inspect @ main.gd:134 —— 信号 1 参，目标「_on_inspect」
+    [OK] BuildingPlacer.place_failed ← _on_place_failed @ main.gd:135 —— 信号 1 参，目标「_on_place_failed」
+    [OK] TimeManager.new_day ← _on_new_day @ main.gd:155 —— 信号 0 参，目标「_on_new_day」
+    [OK] Villager.died ← _on_villager_died @ main.gd:189 —— 信号 2 参，目标「_on_villager_died」
+    [OK] b.pressed（内置） ← action @ main_menu.gd:130 —— 信号 0 参，目标「action」
+    [OK] load_btn.pressed（内置） ← main.load_and_play.bind(s[""]) @ main_menu.gd:219 —— 信号 0 参，目标「main.load_and_play.bind(s[""])」
+    [OK] del_btn.pressed（内置） ← _on_delete_save.bind(s[""]) @ main_menu.gd:224 —— 信号 0 参，目标「_on_delete_save.bind(s[""])」
+    [OK] dice.pressed（内置） ← _on_roll_seed @ main_menu.gd:285 —— 信号 0 参，目标「_on_roll_seed」
+    [OK] b.pressed（内置） ← _on_option_picked.bind(key, d[""]) @ main_menu.gd:317 —— 信号 0 参，目标「_on_option_picked.bind(key, d[""])」
+    [OK] Villager.died ← game._on_villager_died @ save_manager.gd:287 —— 信号 2 参，目标「game._on_villager_died」
   Callable 间接连接（main_menu._make_button 模式，按 pressed 0 参校验）：
-    [OK] 11 处 _make_button 实参校验通过
+    [OK] 13 处 _make_button 实参校验通过
   小计：ERROR=0, WARN=0
 
 [F] GDScript 语法粗检（缩进混用 / 字符串未闭合 / 全角字符 / match 冒号 / func 签名 / 块冒号）
@@ -140,6 +153,7 @@ KingdomBuilder 启发式静态检查报告
   time_manager.gd：语法粗检通过（缩进/字符串/全角/match 冒号/func 签名/块冒号）
   ui_font.gd：语法粗检通过（缩进/字符串/全角/match 冒号/func 签名/块冒号）
   villager.gd：语法粗检通过（缩进/字符串/全角/match 冒号/func 签名/块冒号）
+  world_config.gd：语法粗检通过（缩进/字符串/全角/match 冒号/func 签名/块冒号）
   logic_test.gd：语法粗检通过（缩进/字符串/全角/match 冒号/func 签名/块冒号）
   menu_test.gd：语法粗检通过（缩进/字符串/全角/match 冒号/func 签名/块冒号）
   play_test.gd：语法粗检通过（缩进/字符串/全角/match 冒号/func 签名/块冒号）
@@ -147,6 +161,6 @@ KingdomBuilder 启发式静态检查报告
   小计：ERROR=0, WARN=0
 
 ==============================================================================
-总结：全部分节 ERROR=0 / WARN=7（启发式，需人工逐条核对剔除误报）
+总结：全部分节 ERROR=0 / WARN=13（启发式，需人工逐条核对剔除误报）
 启发式检查结束。注意：以上为工具原始输出，需人工逐条核对源码剔除误报。
 ==============================================================================

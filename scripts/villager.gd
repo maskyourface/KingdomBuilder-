@@ -9,6 +9,32 @@ class_name Villager
 ## 平民遇袭会逃回家（箭塔射手除外，他们在塔内作战）。
 ## workplace / home / raid 保持无类型，避免循环引用。
 
+## 村民特长：每人一个，出生即定，入档。
+## 目的是把"派谁去"从随便塞人变成真决策——勤劳的放进瓶颈产线，
+## 体弱的去看水井或麦田，腿快的顶远岗位。负面特长只占一小部分，
+## 但足以让每次分配都要看一眼是谁。
+const TRAITS := {
+	&"plain": {"name": "寻常", "desc": "没有特别之处"},
+	&"diligent": {"name": "勤劳", "desc": "干活效率 +25%", "work": 1.25},
+	&"skilled": {"name": "手巧", "desc": "在加工作坊（需投入原料）效率 +35%", "craft": 1.35},
+	&"hardy": {"name": "壮硕", "desc": "饿得慢 25%；当卫兵多 40 点血", "hunger": 0.75, "hp": 40},
+	&"cheerful": {"name": "乐观", "desc": "自身幸福 +8", "mood": 8.0},
+	&"swift": {"name": "腿快", "desc": "移动速度 +25%，适合远岗位", "speed": 1.25},
+	&"frail": {"name": "体弱", "desc": "效率 −15%，饿得快 30%", "work": 0.85, "hunger": 1.3},
+}
+## 学堂可点化的起点：体弱先调理成寻常，寻常再学一门手艺。
+## 已经有手艺/壮硕/乐观的人不再进课堂——避免把村民洗成清一色的最优解。
+const TEACHABLE: Array[StringName] = [&"frail", &"plain"]
+## 学堂能教出来的手艺
+const LEARNABLE: Array[StringName] = [&"diligent", &"skilled", &"swift"]
+
+## 抽取池（重复即权重）：一半寻常，让有特长的人真的显眼；体弱占 1/10 左右
+const TRAIT_POOL: Array[StringName] = [
+	&"plain", &"plain", &"plain", &"plain", &"plain",
+	&"diligent", &"diligent", &"skilled", &"skilled",
+	&"hardy", &"cheerful", &"swift", &"frail",
+]
+
 enum State { IDLE, MOVING, WORKING, RESTING, EATING, FLEEING, FIGHTING }
 enum Purpose { NONE, TO_WORK, TO_HOME, WANDER, TO_FLEE, TO_FIGHT }
 enum Role { COMMONER, GUARD }
@@ -17,11 +43,10 @@ enum Role { COMMONER, GUARD }
 signal died(villager, reason: String)
 
 const SPEED := 60.0
-const ROAD_MULTIPLIER := 1.6
 const HUNGER_RATE := 100.0 / 240.0  # 约 4 分钟饿满
 const HUNGRY_AT := 60.0
-const BREAD_RESTORE := 100.0        # 面包：回满
-const FOOD_RESTORE := 50.0          # 生食：回一半
+# 吃什么、回多少，统一由 ResourceManager.EDIBLE_RESTORE 定（面包 100 / 肉 80 / 蜂蜜 60 / 生食 50）。
+# 路面移速倍率同理，见 GridManager.ROAD_SPEEDS——两处都刻意不在这里再抄一份常量
 const REPATH_INTERVAL := 1.0        # 寻路失败后的重试间隔（秒）
 const FLEE_RADIUS := 8.0            # 强盗进入这个范围（格）平民就逃
 const GUARD_AGGRO_RADIUS := 10.0    # 卫兵主动迎击范围（格）
@@ -42,6 +67,7 @@ var last_ate_bread := false    # 今天是否吃了面包（幸福度加分项�
 var has_clothes := false       # 是否穿着衣服（时代Ⅱ起的需求）
 var clothes_days := 0          # 身上的衣服还能穿几天
 var role: Role = Role.COMMONER
+var trait_id: StringName = &"plain"  # 特长（出生即定，入档；旧档缺该键回落到"寻常"）
 var hp := GUARD_MAX_HP         # 卫兵战斗用；平民不会被强盗主动攻击
 var display_name := "村民"
 var workplace = null                  # Building 或 null
@@ -59,6 +85,54 @@ var _fight_target = null              # Enemy 或 null
 var _hurt_fx := 0.0
 var _draw_sig := -1                   # 重绘节流：外观签名（状态/饥饿档/受击/血条档/脉冲相位）
 
+# ---------- 特长 ----------
+
+## 随机抽一个特长（新村民出生时调用；读档时改为直接赋值，不重抽）
+func roll_trait() -> void:
+	trait_id = TRAIT_POOL[randi() % TRAIT_POOL.size()]
+	hp = guard_max_hp()
+
+## 被学堂点化一次（main._school_teaching 调用）
+func learn() -> void:
+	if trait_id == &"frail":
+		trait_id = &"plain"   # 先把身子调理好，再谈学手艺
+	elif trait_id == &"plain":
+		trait_id = LEARNABLE[randi() % LEARNABLE.size()]
+	hp = mini(hp, guard_max_hp())  # 特长换了，血上限可能变低，钳一下
+
+func trait_data() -> Dictionary:
+	return TRAITS.get(trait_id, TRAITS[&"plain"])
+
+func trait_name() -> String:
+	return String(trait_data().get("name", "寻常"))
+
+func trait_desc() -> String:
+	return String(trait_data().get("desc", ""))
+
+## 在某座建筑干活折合多少个"标准人力"（0.85~1.35）。
+## 加工作坊（有原料投入）额外吃"手巧"加成——手巧的人放磨坊/面包房/纺织坊最值。
+func work_efficiency(b) -> float:
+	var t := trait_data()
+	var e := float(t.get("work", 1.0))
+	if b != null and is_instance_valid(b) \
+			and not (b.data.get("inputs", []) as Array).is_empty():
+		e *= float(t.get("craft", 1.0))
+	return e
+
+func hunger_mult() -> float:
+	return float(trait_data().get("hunger", 1.0))
+
+func speed_mult() -> float:
+	return float(trait_data().get("speed", 1.0))
+
+## 特长带来的幸福偏移（main._update_happiness 逐人结算时加上）
+func mood_bonus() -> float:
+	return float(trait_data().get("mood", 0.0))
+
+## 这个人当卫兵时的血量上限（壮硕多 40）
+func guard_max_hp() -> int:
+	return GUARD_MAX_HP + int(trait_data().get("hp", 0))
+
 func setup(p_grid: GridManager, p_resources: ResourceManager,
 		p_time: TimeManager, start_cell: Vector2i, p_raid = null) -> void:
 	grid = p_grid
@@ -70,7 +144,7 @@ func setup(p_grid: GridManager, p_resources: ResourceManager,
 func _process(delta: float) -> void:
 	if _hurt_fx > 0.0:
 		_hurt_fx -= delta
-	hunger += delta * HUNGER_RATE
+	hunger += delta * HUNGER_RATE * hunger_mult()
 	if hunger >= 100.0:
 		_die()
 		return
@@ -103,11 +177,13 @@ func _process(delta: float) -> void:
 			_eat_time += delta
 			if _eat_time >= 2.0:
 				_eat_time = 0.0
-				if resources.try_consume(ResourceManager.Type.BREAD):
-					hunger = maxf(0.0, hunger - BREAD_RESTORE)
-					last_ate_bread = true
-				elif resources.try_consume(ResourceManager.Type.FOOD):
-					hunger = maxf(0.0, hunger - FOOD_RESTORE)
+				# 按 EDIBLE_RESTORE 的顺序吃第一样有库存的（面包 → 肉 → 蜂蜜 → 生食）
+				for entry in ResourceManager.EDIBLE_RESTORE:
+					if not resources.try_consume(int(entry[0])):
+						continue
+					hunger = maxf(0.0, hunger - float(entry[1]))
+					last_ate_bread = int(entry[0]) == ResourceManager.Type.BREAD
+					break
 				state = State.IDLE
 		State.FLEEING:
 			# 躲避也要吃饭：有粮先吃，否则袭击期间会"满仓饿死"
@@ -261,9 +337,9 @@ func _start_move(cell: Vector2i, purpose: Purpose) -> void:
 	state = State.MOVING
 
 func _follow_path(delta: float) -> void:
-	var speed := SPEED
-	if grid.has_road(grid.world_to_cell(position)):
-		speed *= ROAD_MULTIPLIER
+	var speed := SPEED * speed_mult()
+	# 路面倍率按交通方式查表（土路 1.6 / 石板路 2.1 / 桥 1.25 / 山道 1.15）
+	speed *= grid.road_speed(grid.world_to_cell(position))
 	var target := grid.cell_center(_path[_path_index])
 	position = position.move_toward(target, speed * delta)
 	if position.distance_to(target) < 2.0:

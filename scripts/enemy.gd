@@ -1,14 +1,27 @@
 extends Node2D
 class_name Enemy
 
-## 强盗：袭击事件中的敌对单位。从地图边缘生成，奔向最近的住房/市场抢劫，
-## 被墙挡住就拆墙，被卫兵/箭塔攻击就反击，得手后撤回地图边缘消失。
+## 敌对单位。两种：
+## - 强盗（bandit，时代Ⅳ 起）：奔向最近的住房/市场抢劫，被墙挡住就拆墙，
+##   被卫兵/箭塔攻击就反击，得手后撤回地图边缘消失。
+## - 野狼（wolf，时代Ⅱ~Ⅲ）：血薄、不拆墙、只叼食物与羊毛，专挑食物产线与粮仓；
+##   怕火——被篝火照到的建筑不会被盯上，误闯进火光范围的狼直接夹尾巴跑。
+##   目的是让时代Ⅰ~Ⅲ 不再是"零风险挂机"，同时给「篝火」这个布局决策一个存在理由。
+## 两者共用同一套调度/撤退/士气/箭塔索敌机制，只在目标选择与战利品上分叉。
 ## 不吃道路加速、不主动追平民。寻路用 for_enemy 规则（城门不可走）。
 
 enum State { SEEK, ATTACK, PILLAGE, FIGHT, LEAVE }
 
 const SPEED := 60.0          # 无道路加成
 const MAX_HP := 60
+const WOLF_MAX_HP := 30      # 野狼血薄：一座箭塔三发即可，卫兵两下就赶走
+const WOLF_SPEED := 78.0     # 狼跑得比强盗快，逃跑的村民真的跑不过
+const WOLF_PILLAGE_TIME := 3.0
+## 野狼盯的是"吃的"：食物产线与存粮的地方（不碰住房、不进市场）。
+## 肉类产线（猎人小屋/腌肉坊）在这里，让新的肉食经济和狼群威胁挂上钩
+const WOLF_TARGET_IDS: Array[String] = [
+	"pasture", "gatherer", "fisher", "farm", "granary", "hunter", "curing_house",
+]
 const DAMAGE := 8            # 对卫兵每秒一次
 const SIEGE_DAMAGE := 15     # 拆墙每秒一次
 const MELEE_RANGE := 1.5     # 格
@@ -19,6 +32,7 @@ var grid: GridManager
 var resources: ResourceManager
 var raid = null              # RaidManager
 
+var kind: StringName = &"bandit"  # bandit（强盗）/ wolf（野狼）
 var hp := MAX_HP
 var state: State = State.SEEK
 var target_building = null   # 抢劫目标（住房/市场）或要拆的墙
@@ -33,15 +47,41 @@ var _hurt_fx := 0.0
 var _draw_sig := -1          # 重绘节流：外观签名
 
 func setup(p_grid: GridManager, p_resources: ResourceManager,
-		p_raid, start_cell: Vector2i) -> void:
+		p_raid, start_cell: Vector2i, p_kind: StringName = &"bandit") -> void:
 	grid = p_grid
 	resources = p_resources
 	raid = p_raid
+	kind = p_kind
+	hp = max_hp()
 	position = grid.cell_center(start_cell)
+
+func is_wolf() -> bool:
+	return kind == &"wolf"
+
+func max_hp() -> int:
+	return WOLF_MAX_HP if is_wolf() else MAX_HP
+
+func move_speed() -> float:
+	return WOLF_SPEED if is_wolf() else SPEED
+
+## 这个位置是否被点着的篝火照到（野狼专用；篝火半径吃建筑等级加成）
+func _in_firelight(pos: Vector2) -> bool:
+	if raid == null or raid.buildings_root == null:
+		return false
+	for b in raid.buildings_root.get_children():
+		var r: float = b.eff_scare_radius()
+		if r <= 0.0:
+			continue
+		if pos.distance_to(b.world_pos()) <= r * GridManager.TILE:
+			return true
+	return false
 
 func _process(delta: float) -> void:
 	if _hurt_fx > 0.0:
 		_hurt_fx -= delta
+	# 野狼怕火：误闯进篝火照到的范围就掉头跑（撤离中的不再重复判定）
+	if is_wolf() and state != State.LEAVE and _in_firelight(position):
+		_start_leave()
 	match state:
 		State.SEEK:
 			_seek(delta)
@@ -90,8 +130,7 @@ func _seek(delta: float) -> void:
 ## 选目标并寻路；被围死就找最近的城墙/城门来拆
 func _plan_route() -> void:
 	_wait = REPATH_INTERVAL
-	if not is_instance_valid(target_building) \
-			or not (target_building.data.get("housing", 0) > 0 or target_building.data.get("auto_sells", false)):
+	if not is_instance_valid(target_building) or not _valid_target(target_building):
 		target_building = _pick_target()
 	if target_building == null:
 		_start_leave()
@@ -105,12 +144,22 @@ func _plan_route() -> void:
 	if _path.is_empty():
 		_try_siege()
 
-## 找最近的可抢建筑（住房或市场）
+## 这座建筑是不是本单位的合法目标（强盗抢住房/市场，野狼叼食物产线与粮仓）
+func _valid_target(b) -> bool:
+	if b == null or not is_instance_valid(b):
+		return false
+	if is_wolf():
+		if not (String(b.data.get("id", "")) in WOLF_TARGET_IDS):
+			return false
+		return not _in_firelight(b.world_pos())  # 被火照到的不敢碰
+	return b.data.get("housing", 0) > 0 or b.data.get("auto_sells", false)
+
+## 找最近的可抢建筑
 func _pick_target():
 	var best = null
 	var best_d := 1e30
 	for b in raid.buildings_root.get_children():
-		if not (b.data.get("housing", 0) > 0 or b.data.get("auto_sells", false)):
+		if not _valid_target(b):
 			continue
 		var d := position.distance_squared_to(b.position)
 		if d < best_d:
@@ -120,6 +169,9 @@ func _pick_target():
 
 ## 拆墙：找最近的城墙/城门，走到旁边开打；连墙都摸不到就撤
 func _try_siege() -> void:
+	if is_wolf():
+		_start_leave()  # 狼不会拆墙：进不去就走
+		return
 	var wall = raid.find_nearest_wall(position)
 	if wall == null:
 		_start_leave()
@@ -138,7 +190,7 @@ func _try_siege() -> void:
 
 func _follow_path(delta: float) -> void:
 	var target := grid.cell_center(_path[_path_index])
-	position = position.move_toward(target, SPEED * delta)
+	position = position.move_toward(target, move_speed() * delta)
 	if position.distance_to(target) < 2.0:
 		_path_index += 1
 		if _path_index < _path.size():
@@ -189,7 +241,10 @@ func _pillage_tick(delta: float) -> void:
 		state = State.SEEK
 		return
 	_channel += delta
-	if _channel < PILLAGE_TIME:
+	if _channel < (WOLF_PILLAGE_TIME if is_wolf() else PILLAGE_TIME):
+		return
+	if is_wolf():
+		_wolf_loot()
 		return
 	var got := 0
 	var want_food := maxi(1, resources.get_amount(ResourceManager.Type.FOOD) / 10)
@@ -202,6 +257,23 @@ func _pillage_tick(delta: float) -> void:
 		var want_gold := maxi(1, resources.get_amount(ResourceManager.Type.GOLD) / 10)
 		if resources.try_consume(ResourceManager.Type.GOLD, want_gold):
 			got += want_gold
+	if got > 0:
+		_did_pillage = true
+		raid.register_pillage()
+	_start_leave()
+
+## 野狼的战利品：叼走一点生食，牧羊场还会咬死羊（掉羊毛）。
+## 量比强盗小得多——它是"持续骚扰 + 逼你布置篝火"，不是一次抄家。
+func _wolf_loot() -> void:
+	var got := 0
+	var want_food: int = maxi(2, resources.get_amount(ResourceManager.Type.FOOD) / 20)
+	if resources.try_consume(ResourceManager.Type.FOOD, want_food):
+		got += want_food
+	if is_instance_valid(target_building) \
+			and String(target_building.data.get("id", "")) == "pasture":
+		var want_wool: int = maxi(1, resources.get_amount(ResourceManager.Type.WOOL) / 10)
+		if resources.try_consume(ResourceManager.Type.WOOL, want_wool):
+			got += want_wool
 	if got > 0:
 		_did_pillage = true
 		raid.register_pillage()
@@ -262,16 +334,25 @@ func _leave_tick(delta: float) -> void:
 
 func _draw() -> void:
 	var body := Color(0.55, 0.15, 0.12)
+	if is_wolf():
+		body = Color(0.42, 0.42, 0.46)  # 灰狼：和红头巾强盗一眼可分
 	if _hurt_fx > 0.0:
 		body = Color(1.0, 0.3, 0.2)
 	draw_circle(Vector2.ZERO, 6.0, body)
-	draw_circle(Vector2(0, -8), 4.0, Color(0.3, 0.2, 0.15))  # 头巾
+	if is_wolf():
+		# 两只尖耳朵
+		draw_colored_polygon(PackedVector2Array([Vector2(-5, -5), Vector2(-2, -11),
+			Vector2(-1, -4)]), body)
+		draw_colored_polygon(PackedVector2Array([Vector2(5, -5), Vector2(2, -11),
+			Vector2(1, -4)]), body)
+	else:
+		draw_circle(Vector2(0, -8), 4.0, Color(0.3, 0.2, 0.15))  # 头巾
 	# 抢劫引导条
 	if state == State.PILLAGE:
-		var ratio := clampf(_channel / PILLAGE_TIME, 0.0, 1.0)
+		var ratio := clampf(_channel / (WOLF_PILLAGE_TIME if is_wolf() else PILLAGE_TIME), 0.0, 1.0)
 		draw_rect(Rect2(Vector2(-8, -22), Vector2(16, 3)), Color(0.2, 0.2, 0.2))
 		draw_rect(Rect2(Vector2(-8, -22), Vector2(16 * ratio, 3)), Color(1.0, 0.8, 0.2))
 	# 血条
-	var hp_ratio := clampf(float(hp) / float(MAX_HP), 0.0, 1.0)
+	var hp_ratio := clampf(float(hp) / float(max_hp()), 0.0, 1.0)
 	draw_rect(Rect2(Vector2(-8, -18), Vector2(16, 3)), Color(0.2, 0.2, 0.2))
 	draw_rect(Rect2(Vector2(-8, -18), Vector2(16 * hp_ratio, 3)), Color(0.9, 0.2, 0.2))

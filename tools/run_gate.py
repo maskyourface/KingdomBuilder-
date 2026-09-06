@@ -800,12 +800,18 @@ def check_godot_tests(target, mode, ctx):
         warnings.append(warn("tools/godot_portable", None,
                              "快照模式跳过 Godot 实机测试（只对主工程运行）"))
         return errors, warnings, infos
-    exe = os.path.join(MAIN_PROJECT, "tools", "godot_portable",
-                       "Godot_v4.4.1-stable_win64.exe")
-    if not os.path.isfile(exe):
+    # 便携版 Godot 按平台探测：Windows 用 .exe，Linux 用 .x86_64（两者同版本，二选一即可）
+    portable = os.path.join(MAIN_PROJECT, "tools", "godot_portable")
+    candidates = [
+        os.path.join(portable, "Godot_v4.4.1-stable_win64.exe"),
+        os.path.join(portable, "Godot_v4.4.1-stable_linux.x86_64"),
+    ]
+    exe = next((c for c in candidates if os.path.isfile(c)), "")
+    if not exe:
         warnings.append(warn("tools/godot_portable", None,
                              "未找到便携版 Godot（%s），跳过实机测试；"
-                             "下载后本项自动启用" % exe))
+                             "下载后本项自动启用"
+                             % " 或 ".join(os.path.basename(c) for c in candidates)))
         return errors, warnings, infos
 
     def run_godot(args, timeout):
