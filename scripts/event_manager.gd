@@ -19,11 +19,15 @@ var _last_event_day := {}    # 事件 id → 上次出现的天数（冷却）
 ## 事件定义：era=最低时代；options 为可选行动（effects 由 apply_effects 解释）
 const EVENTS: Array[Dictionary] = [
 	{
+		"id": "snow_aid", "era": 1, "winter": true, "title": "雪中送炭",
+		"desc": "风雪里，邻村的猎人送来了一批过冬的口粮。",
+		"options": [{"label": "收下（+6 食物）", "effects": {"food": 6}}]},
+	{
 		"id": "artisan", "era": 1, "title": "流浪工匠",
 		"desc": "一位流浪工匠在村口徘徊，愿意用一双巧手换一口饭吃。",
 		"options": [
 			{"label": "收留他（+1 村民）", "effects": {"villager": 1}},
-			{"label": "给他 3 食物作盘缠", "effects": {"food": -3}},
+			{"label": "给他 3 食物作盘缠（次日幸福 +2）", "effects": {"food": -3, "mood": 2}},
 		],
 	},
 	{
@@ -91,7 +95,8 @@ func on_new_day(era: int) -> void:
 	if rainy_day >= 0 and time.day > rainy_day:
 		rainy_day = -1  # 暴雨日已过，清理标记
 	if next_event_day < 0:
-		next_event_day = time.day + rng.randi_range(2, 4)
+		# 首张事件卡推迟到第 6 天之后，不与六步引导抢注意力
+		next_event_day = time.day + rng.randi_range(2, 4) + (4 if time.day <= 4 else 0)
 		return
 	if time.day < next_event_day:
 		return
@@ -120,6 +125,8 @@ func _try_open(era: int) -> void:
 	for e in EVENTS:
 		if int(e.get("era", 1)) > era:
 			continue
+		if bool(e.get("winter", false)) != time.is_winter():
+			continue  # 雪中送炭只在冬季，其余不在冬季（与袭击的冬季休战互补）
 		if e["id"] == "rain" and game._count_building("farm") == 0 				and game._count_building("fisher") == 0:
 			continue  # 没有可停产的建筑，暴雨卡是零效果浪费
 		if time.day - int(_last_event_day.get(e["id"], -99)) < COOLDOWN_DAYS:

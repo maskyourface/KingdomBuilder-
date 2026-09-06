@@ -253,7 +253,7 @@ func _count_building(id: String) -> int:
 			n += 1
 	return n
 
-## 新手引导：前 3 天的四步目标（纯派生、零状态）。0 = 已完成/隐藏，1~4 = 当前步
+## 新手引导：前 6 天的六步目标（纯派生、零状态）。0 = 已完成/隐藏，1~6 = 当前步
 func tutorial_step() -> int:
 	# 六步引导覆盖前 6 天；第 4 步要等伐木场攒木头（39 木支出 > 开局 40 木的富余很快被花掉）
 	if time_mgr.day > 6 or not _game_started:
@@ -283,6 +283,7 @@ const TUTORIAL_REWARDS := {
 	6: [[ResourceManager.Type.STONE, 3]],
 }
 var _tutorial_last := 0  # 上次所处的引导步（-1=读档恢复，不补发奖励）
+var _tutorial_claimed := {}  # 已发过奖励的引导步（防拆了重建反复领）
 
 func _check_tutorial_reward(step: int) -> void:
 	if _tutorial_last == -1:
@@ -291,9 +292,10 @@ func _check_tutorial_reward(step: int) -> void:
 	var completed := -1
 	if step > _tutorial_last:
 		completed = step - 1  # 进入新步骤 = 完成了上一步
-	elif step == 0 and _tutorial_last == 6:
-		completed = 6  # 水井建成，引导毕业（原表 key 7 永不可达的修正）
-	if completed >= 1:
+	elif step == 0 and _tutorial_last >= 1 and _tutorial_last <= 6:
+		completed = _tutorial_last  # 引导毕业：最后所处步骤视为完成（覆盖跳序完成）
+	if completed >= 1 and not _tutorial_claimed.has(completed):
+		_tutorial_claimed[completed] = true
 		var reward: Array = TUTORIAL_REWARDS.get(completed, [])
 		if not reward.is_empty():
 			var parts := PackedStringArray()
@@ -826,6 +828,7 @@ func new_game() -> void:
 	_collapse_days = 0
 	_collapse_shown = false
 	_tutorial_last = 0
+	_tutorial_claimed.clear()
 	event_mgr.reset()
 	hud.hide_collapse_panel()
 	for v in villagers_root.get_children():

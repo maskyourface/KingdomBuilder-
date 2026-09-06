@@ -1,6 +1,6 @@
 ==============================================================================
 KingdomBuilder 启发式静态检查报告
-生成时间：2026-09-06 03:02:22
+生成时间：2026-09-06 12:49:55
 运行时：Python 3.13.5
 工具版本：迭代2（新增 [E] 信号契约 / [F] 语法粗检；[A] 映射补全 game→Main；[D] 新字段复跑）
 扫描目录：scripts, tests
@@ -87,7 +87,7 @@ KingdomBuilder 启发式静态检查报告
     [OK] pressed.emit()（内置信号）@ menu_test.gd:15
     [OK] pressed.emit()（内置信号）@ menu_test.gd:28
   connect 校验（32 处）：
-    [OK] btn.pressed（内置） ← _choose.bind(opt) @ event_manager.gd:237 —— 信号 0 参，目标「_choose.bind(opt)」
+    [OK] btn.pressed（内置） ← _choose.bind(opt) @ event_manager.gd:244 —— 信号 0 参，目标「_choose.bind(opt)」
     [OK] ResourceManager.changed ← _mark_resources_dirty @ hud.gd:107 —— 信号 0 参，目标「_mark_resources_dirty」
     [OK] _pop_btn.pressed（内置） ← main.focus_next_idle @ hud.gd:141 —— 信号 0 参，目标「main.focus_next_idle」
     [OK] build_toggle.pressed（内置） ← _toggle_build_menu @ hud.gd:152 —— 信号 0 参，目标「_toggle_build_menu」
